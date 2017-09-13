@@ -6,54 +6,76 @@ using UnityEngine;
 	
 public class TerrainChunk : MonoBehaviour
 {
-
+	private const float CubeHalfWidth = 0.5f;
+	
     private MeshFilter _meshFilter;
+	private MeshCollider _collider;
     private Mesh _chunk;
 	
-	const int ChunkSize = 4;
-	private short[,,] _map = {
-		{
-			{1,1,1,1},
-			{1,1,1,1},
-			{1,1,1,1},
-			{1,1,1,1}
-		}, {
-			{0,0,0,0},
-			{0,1,1,0},
-			{0,0,1,0},
-			{0,0,0,0}
-		}, {
-			{0,0,0,0},
-			{0,1,1,0},
-			{0,1,1,0},
-			{0,0,0,0}
-		}, {
-			{0,0,0,0},
-			{0,0,1,0},
-			{0,0,0,0},
-			{0,0,0,0}
-		}
-	};
+	const int ChunkSize = 16;
+	private short[,,] _map = new short[16,16,16];
 
 	List<Vector3> _vertices;
 	List<Vector3> _normals;
 	List<Vector2> _uv;
 	List<int> _triangles;
-	
 	private int _v; // vertex index
 
     void Start ()
     {
         _meshFilter = GetComponent<MeshFilter>();
+	    _collider = GetComponent<MeshCollider>();
 	    
 	    _vertices = new List<Vector3>();
 	    _normals = new List<Vector3>();
 	    _uv = new List<Vector2>();
 	    _triangles = new List<int>();
 	    
+	    // TODO generation
+	    for (var y = 0; y < ChunkSize; y++)
+	    {
+		    for (var x = 0; x < ChunkSize; x++)
+		    {
+			    for (var z = 0; z < ChunkSize; z++)
+			    {
+				    _map[y, x, z] = (short)(y < 4 ? 1 : 0);
+			    }
+		    }
+	    }
+	    
+	    //
+	    
 	    Generate();
     }
 
+	public void Hit(RaycastHit ray)
+	{
+		Vector3 cubePos = ray.point - ray.normal * CubeHalfWidth - transform.position;
+		int x = Mathf.FloorToInt(cubePos.x);
+		int y = Mathf.FloorToInt(cubePos.y);
+		int z = Mathf.FloorToInt(cubePos.z);
+		
+		Debug.Log(new Vector3(y,x,z));
+		_map[y, x, z] = 0;
+		// TODO hit count
+		
+		Generate();
+	}
+	
+	public void Add(RaycastHit ray)
+	{
+		Vector3 cubePos = ray.point + ray.normal * CubeHalfWidth - transform.position;
+		int x = Mathf.FloorToInt(cubePos.x);
+		int y = Mathf.FloorToInt(cubePos.y);
+		int z = Mathf.FloorToInt(cubePos.z);
+		
+		_map[y, x, z] = 1;
+		
+		Debug.Log(_map[y,x,z]);
+		
+		Generate();
+	}
+	
 	private bool isEmpty(int y, int x, int z)
 	{
 		return _map[y, x, z] == 0; // TODO block type
@@ -198,7 +220,15 @@ public class TerrainChunk : MonoBehaviour
 		mesh.triangles = _triangles.ToArray();
 		mesh.normals = _normals.ToArray();
 		mesh.uv = _uv.ToArray();
+		
 		_meshFilter.mesh = mesh;
+		_collider.sharedMesh = mesh;
+		
+		_vertices.Clear();
+		_triangles.Clear();
+		_normals.Clear();
+		_uv.Clear();
+		_v = 0;
 	}
 
 }
