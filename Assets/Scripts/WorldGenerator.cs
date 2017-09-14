@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Runtime.CompilerServices;
-using UnityEditor;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 public class WorldGenerator : MonoBehaviour
@@ -139,7 +135,7 @@ public class WorldGenerator : MonoBehaviour
 		return _chunkMap[chunkPos];
 	}
 	
-	public int GetBlock(int y, int x, int z)
+	public Block.Type GetBlock(int y, int x, int z)
 	{
 		int by = y % TerrainChunk.ChunkSize;
 		int bx = x % TerrainChunk.ChunkSize;
@@ -152,12 +148,12 @@ public class WorldGenerator : MonoBehaviour
 		Vector3 chunkPos = new Vector3(x - bx, y - by, z - bz);
 
 		TerrainChunk chunk = GetChunk(chunkPos);
-		if (!chunk) { return 0; }
+		if (!chunk) { return Block.Type.Empty; }
 		
 		return chunk.GetBlock(by, bx, bz);
 	}
 	
-	public TerrainChunk SetBlock(int y, int x, int z, short value)
+	public TerrainChunk SetBlock(int y, int x, int z, Block.Type type)
 	{
 		int by = y % TerrainChunk.ChunkSize;
 		int bx = x % TerrainChunk.ChunkSize;
@@ -170,12 +166,26 @@ public class WorldGenerator : MonoBehaviour
 		Vector3 chunkPos = new Vector3(x - bx, y - by, z - bz);
 
 		TerrainChunk chunk = CreateChunk(chunkPos);
-		chunk.SetBlock(by, bx, bz, value);
+		chunk.SetBlock(by, bx, bz, type);
 		
-		// if on edge of two chunks, redraw both
-		if (by == 0 && value == 0)
+		Debug.Log(by);
+		
+		// if digging down, ensure there's new chunk
+		if (type == Block.Type.Empty && by == 0)
 		{
 			CreateChunk(Vector3.down, chunk.transform).RecomputeMesh();
+		}
+
+		if (type == Block.Type.Empty)
+		{
+			TerrainChunk nbr = null;
+			if (bx == 0)                               { nbr = GetNbrChunk(Vector3.left, chunk); }
+			else if (bx == TerrainChunk.ChunkSize - 1) { nbr = GetNbrChunk(Vector3.right, chunk); }
+			if (nbr) { nbr.RecomputeMesh(); }
+			
+			if (bz == 0)                               { nbr = GetNbrChunk(Vector3.back, chunk); }
+			else if (bz == TerrainChunk.ChunkSize - 1) { nbr = GetNbrChunk(Vector3.forward, chunk); }
+			if (nbr) { nbr.RecomputeMesh(); }
 		}
 		
 		chunk.RecomputeMesh();

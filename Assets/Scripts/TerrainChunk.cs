@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class TerrainChunk : MonoBehaviour
@@ -66,7 +67,7 @@ public class TerrainChunk : MonoBehaviour
 			{
 				for (var z = 0; z < ChunkSize; z++)
 				{
-					_map[y, x, z] = (short)(_wy + y < heightMap[x, z] ? 1 : 0);
+					_map[y, x, z] = (short)(_wy + y < heightMap[x, z] ? Block.Type.Ground : Block.Type.Empty);
 				}
 			}
 		}		
@@ -77,24 +78,24 @@ public class TerrainChunk : MonoBehaviour
 		RecomputeMesh();
 	}
 	
-	public void SetBlock(int y, int x, int z, short value)
+	public void SetBlock(int y, int x, int z, Block.Type type)
 	{
-		_map[y, x, z] = value;
+		_map[y, x, z] = (short)type;
 	}
 
-	public int GetBlock(int y, int x, int z)
+	public Block.Type GetBlock(int y, int x, int z)
 	{
-		return _map[y, x, z];
+		return (Block.Type)_map[y, x, z];
 	}
 
-	public int GetWorldBlock(int y, int x, int z)
+	public Block.Type GetWorldBlock(int y, int x, int z)
 	{
 		return _generator.GetBlock(_wy + y, _wx + x, _wz + z);
 	}
 	
 	private bool IsEmpty(int y, int x, int z)
 	{
-		return _map[y, x, z] == 0; // TODO block type
+		return _map[y, x, z] == (int)Block.Type.Empty;
 	}
 
 	private void AddTriangles()
@@ -118,17 +119,22 @@ public class TerrainChunk : MonoBehaviour
 		}
 	}
 
-	private void AddUv() // TODO type, side
+	private void AddUv(Block.Type type, Block.Side side)
 	{
-		_uv.Add(new Vector2(0,    3/4f));
-		_uv.Add(new Vector2(0,    1));
-		_uv.Add(new Vector2(1/4f, 1));
-		_uv.Add(new Vector2(1/4f, 3/4f));
+		float x0 = Mathf.Clamp01((int) side      * Block.TextureSize);
+		float x1 = Mathf.Clamp01((int)(side + 1) * Block.TextureSize);
+		float y0 = Mathf.Clamp01((int) type      * Block.TextureSize);
+		float y1 = Mathf.Clamp01((int)(type + 1) * Block.TextureSize);
+		
+		_uv.Add(new Vector2(x0, y0));
+		_uv.Add(new Vector2(x0, y1));
+		_uv.Add(new Vector2(x1, y1));
+		_uv.Add(new Vector2(x1, y0));
 	}
 	
 	private void AddTopFace(int y, int x, int z)
 	{
-		if (GetWorldBlock(y + 1, x, z) != 0) { return; }
+		if (GetWorldBlock(y + 1, x, z) != Block.Type.Empty) { return; }
 		
 		_vertices.Add(new Vector3(x,   y+1, z));
 		_vertices.Add(new Vector3(x,   y+1, z+1));
@@ -136,13 +142,13 @@ public class TerrainChunk : MonoBehaviour
 		_vertices.Add(new Vector3(x+1, y+1, z));
 		
 		AddNormals(Vector3.up);
-		AddUv();
+		AddUv((Block.Type)_map[y,x,z], Block.Side.Top);
 		AddTriangles();
 	}
 	
 	private void AddBottomFace(int y, int x, int z)
 	{
-		if (GetWorldBlock(y - 1, x, z) != 0) { return; }
+		if (GetWorldBlock(y - 1, x, z) != Block.Type.Empty) { return; }
 		
 		_vertices.Add(new Vector3(x+1, y, z));
 		_vertices.Add(new Vector3(x+1, y, z+1));
@@ -150,13 +156,13 @@ public class TerrainChunk : MonoBehaviour
 		_vertices.Add(new Vector3(x,   y, z));
 		
 		AddNormals(Vector3.down);		
-		AddUv();
+		AddUv((Block.Type)_map[y,x,z], Block.Side.Bottom);
 		AddTriangles();
 	}
 
 	private void AddNorthFace(int y, int x, int z)
 	{
-		if (GetWorldBlock(y, x, z + 1) != 0) { return; }
+		if (GetWorldBlock(y, x, z + 1) != Block.Type.Empty) { return; }
 		
 		_vertices.Add(new Vector3(x+1, y,   z+1));
 		_vertices.Add(new Vector3(x+1, y+1, z+1));
@@ -164,13 +170,13 @@ public class TerrainChunk : MonoBehaviour
 		_vertices.Add(new Vector3(x,   y,   z+1));
 		
 		AddNormals(Vector3.forward);
-		AddUv();
+		AddUv((Block.Type)_map[y,x,z], Block.Side.Side);
 		AddTriangles();
 	}
 
 	private void AddSouthFace(int y, int x, int z)
 	{
-		if (GetWorldBlock(y, x, z - 1) != 0) { return; }
+		if (GetWorldBlock(y, x, z - 1) != Block.Type.Empty) { return; }
 		
 		_vertices.Add(new Vector3(x,   y,   z));
 		_vertices.Add(new Vector3(x,   y+1, z));
@@ -178,13 +184,13 @@ public class TerrainChunk : MonoBehaviour
 		_vertices.Add(new Vector3(x+1, y,   z));
 		
 		AddNormals(Vector3.back);
-		AddUv();
+		AddUv((Block.Type)_map[y,x,z], Block.Side.Side);
 		AddTriangles();
 	}
 	
 	private void AddWestFace(int y, int x, int z)
 	{
-		if (GetWorldBlock(y, x - 1, z) != 0) { return; }
+		if (GetWorldBlock(y, x - 1, z) != Block.Type.Empty) { return; }
 		
 		_vertices.Add(new Vector3(x, y,   z+1));
 		_vertices.Add(new Vector3(x, y+1, z+1));
@@ -192,14 +198,13 @@ public class TerrainChunk : MonoBehaviour
 		_vertices.Add(new Vector3(x, y, z));
 		
 		AddNormals(Vector3.left);
-		AddUv();
+		AddUv((Block.Type)_map[y,x,z], Block.Side.Side);
 		AddTriangles();
 	}
 
-	
 	private void AddEastFace(int y, int x, int z)
 	{
-		if (GetWorldBlock(y, x + 1, z) != 0) { return; }
+		if (GetWorldBlock(y, x + 1, z) != Block.Type.Empty) { return; }
 		
 		_vertices.Add(new Vector3(x+1, y,   z));
 		_vertices.Add(new Vector3(x+1, y+1, z));
@@ -207,7 +212,7 @@ public class TerrainChunk : MonoBehaviour
 		_vertices.Add(new Vector3(x+1, y,   z+1));
 		
 		AddNormals(Vector3.right);
-		AddUv();
+		AddUv((Block.Type)_map[y,x,z], Block.Side.Side);
 		AddTriangles();
 	}
 
