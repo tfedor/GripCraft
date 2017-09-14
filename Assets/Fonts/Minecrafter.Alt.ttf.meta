@@ -1,0 +1,21 @@
+fileFormatVersion: 2
+guid: cc94398a555c38247be8d51e3a2c16e2
+timeCreated: 1505425902
+licenseType: Free
+TrueTypeFontImporter:
+  serializedVersion: 4
+  fontSize: 16
+  forceTextureCase: -2
+  characterSpacing: 0
+  characterPadding: 1
+  includeFontData: 1
+  fontName: Minecrafter Alt
+  fontNames:
+  - Minecrafter Alt
+  fallbackFontReferences: []
+  customCharacters: 
+  fontRenderingMode: 0
+  ascentCalculationMode: 1
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

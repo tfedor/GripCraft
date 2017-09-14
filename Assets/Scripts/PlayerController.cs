@@ -1,7 +1,4 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEditor;
-using UnityEngine;
+﻿using UnityEngine;
 
 public class PlayerController : MonoBehaviour
 {
@@ -9,6 +6,7 @@ public class PlayerController : MonoBehaviour
 	
 	private Vector3 _cursor;
 	private WorldGenerator _world;
+	private UIController _ui;
 
 	private CharacterController _controller;
 	private readonly float _walkSpeed = 6;
@@ -27,16 +25,20 @@ public class PlayerController : MonoBehaviour
 	void Awake()
 	{
 		_controller = GetComponent<CharacterController>();
-	}
-	
-	void Start()
-	{
+		
 		Cursor.lockState = CursorLockMode.Locked;
 		_cursor = new Vector3(Camera.main.pixelWidth*0.5f, Camera.main.pixelHeight*0.5f);
 
 		_world = GameObject.Find("WorldOrigin").GetComponent<WorldGenerator>();
+		_ui = GameObject.Find("UI").GetComponent<UIController>();
 	}
 
+	void Start()
+	{
+		_ui.SetMode(_buildMode);
+		_ui.SelectType(_selectedType);
+	}
+	
 	void Move()
 	{
 		Vector3 dir = new Vector3(Input.GetAxis("Horizontal"), 0, Input.GetAxis("Vertical"));
@@ -69,17 +71,12 @@ public class PlayerController : MonoBehaviour
 		if (Input.GetKeyDown(KeyCode.Tab))
 		{
 			_buildMode = !_buildMode;
-			Debug.Log("Build Mode: " + _buildMode);
-			if (_buildMode)
-			{
-				Debug.Log("Selected type: " + _selectedType.ToString());
-			}
+			_ui.SetMode(_buildMode);
 		}
-		if      (Input.GetKeyDown(KeyCode.Alpha1)) { _selectedType = Block.Type.Ground; }
-		else if (Input.GetKeyDown(KeyCode.Alpha2)) { _selectedType = Block.Type.Stone; }
-		else if (Input.GetKeyDown(KeyCode.Alpha3)) { _selectedType = Block.Type.Sand; }
-		else if (Input.GetKeyDown(KeyCode.Alpha4)) { _selectedType = Block.Type.Gem; }
-		
+		if      (Input.GetKeyDown(KeyCode.Alpha1)) { _selectedType = (Block.Type)0; _ui.SelectType(_selectedType); }
+		else if (Input.GetKeyDown(KeyCode.Alpha2)) { _selectedType = (Block.Type)1; _ui.SelectType(_selectedType); }
+		else if (Input.GetKeyDown(KeyCode.Alpha3)) { _selectedType = (Block.Type)2; _ui.SelectType(_selectedType); }
+		else if (Input.GetKeyDown(KeyCode.Alpha4)) { _selectedType = (Block.Type)3; _ui.SelectType(_selectedType); }
 	}
 	
 	void Update ()
