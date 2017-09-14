@@ -1,11 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UI;
 
 public class TerrainChunk : MonoBehaviour
-{	
-	private const float CubeHalfWidth = 0.5f;
+{
+	private WorldGenerator _generator;
+	
+	public const float CubeHalfWidth = 0.5f;
 	
     private MeshFilter _meshFilter;
 	private MeshCollider _collider;
@@ -20,74 +20,79 @@ public class TerrainChunk : MonoBehaviour
 	private readonly List<int> _triangles = new List<int>();
 	private int _v; // vertex index
 
+	// world offset coordinates
+	private int _wy;
+	private int _wx;
+	private int _wz;
+	
+	//
 	public bool Visited = false;
 
-	void Start ()
+	void Awake ()
     {
-        _meshFilter = GetComponent<MeshFilter>();
+	    _meshFilter = GetComponent<MeshFilter>();
 	    _collider = GetComponent<MeshCollider>();
-	    
-	    // TODO generation
-	    Perlin perlin = new Perlin(10, 10);
-	    var seedX = 2.2412f;
-	    var seedY = 1.12412f;
-	    
-	    int[,] heightMap = new int[ChunkSize,ChunkSize];
-	    for (var x = 0; x < ChunkSize; x++)
-	    {
-		    for (var z = 0; z < ChunkSize; z++)
-		    {
-			    // TODO
-			    var noise = perlin.noise(seedX + (float)x / ChunkSize - 1, seedY + (float) z / ChunkSize - 1);
-			    heightMap[x,z] = 1 + Mathf.RoundToInt((1 + noise) * 7);
-		    }
-	    }
-	    
-	    for (var y = 0; y < ChunkSize; y++)
-	    {
-		    for (var x = 0; x < ChunkSize; x++)
-		    {
-			    for (var z = 0; z < ChunkSize; z++)
-			    {
-				    _map[y, x, z] = (short)(y < heightMap[x, z] ? 1 : 0);
-			    }
-		    }
-	    }
-	    
-	    //
-	    
-	    Generate();
+
+	    _meshFilter.mesh = new Mesh();
     }
 
-	public void Hit(RaycastHit ray)
+	public void Generate()
 	{
-		Vector3 cubePos = ray.point - ray.normal * CubeHalfWidth - transform.position;
-		int x = Mathf.FloorToInt(cubePos.x);
-		int y = Mathf.FloorToInt(cubePos.y);
-		int z = Mathf.FloorToInt(cubePos.z);
+		_wy = (int)transform.position.y;
+		_wx = (int)transform.position.x;
+		_wz = (int)transform.position.z;
 		
-		Debug.Log(new Vector3(y,x,z));
-		_map[y, x, z] = 0;
-		// TODO hit count
-		
-		Generate();
+		_generator = transform.parent.gameObject.GetComponent<WorldGenerator>();
+	    
+		// TODO generation
+		float seedX = 256.2412f;
+		float seedZ = 113.12412f;
+		float step = 1f/64;
+	    
+		int[,] heightMap = new int[ChunkSize,ChunkSize];
+		for (var x = 0; x < ChunkSize; x++)
+		{
+			for (var z = 0; z < ChunkSize; z++)
+			{
+				// TODO
+				var noise = Mathf.PerlinNoise((seedX + _wx + x) * step, (seedZ + _wz + z) * step);
+				heightMap[x,z] = 1 + Mathf.RoundToInt(1 + noise * 14);
+			}
+		}
+	    
+		for (var y = 0; y < ChunkSize; y++)
+		{
+			for (var x = 0; x < ChunkSize; x++)
+			{
+				for (var z = 0; z < ChunkSize; z++)
+				{
+					_map[y, x, z] = (short)(_wy + y < heightMap[x, z] ? 1 : 0);
+				}
+			}
+		}		
+	}
+
+	void Start()
+	{
+		RecomputeMesh();
 	}
 	
-	public void Add(RaycastHit ray)
+	public void SetBlock(int y, int x, int z, short value)
 	{
-		Vector3 cubePos = ray.point + ray.normal * CubeHalfWidth - transform.position;
-		int x = Mathf.FloorToInt(cubePos.x);
-		int y = Mathf.FloorToInt(cubePos.y);
-		int z = Mathf.FloorToInt(cubePos.z);
-		
-		_map[y, x, z] = 1;
-		
-		Debug.Log(_map[y,x,z]);
-		
-		Generate();
+		_map[y, x, z] = value;
+	}
+
+	public int GetBlock(int y, int x, int z)
+	{
+		return _map[y, x, z];
+	}
+
+	public int GetWorldBlock(int y, int x, int z)
+	{
+		return _generator.GetBlock(_wy + y, _wx + x, _wz + z);
 	}
 	
-	private bool isEmpty(int y, int x, int z)
+	private bool IsEmpty(int y, int x, int z)
 	{
 		return _map[y, x, z] == 0; // TODO block type
 	}
@@ -123,7 +128,7 @@ public class TerrainChunk : MonoBehaviour
 	
 	private void AddTopFace(int y, int x, int z)
 	{
-		if (y != ChunkSize - 1 && _map[y + 1, x, z] != 0) { return; }
+		if (GetWorldBlock(y + 1, x, z) != 0) { return; }
 		
 		_vertices.Add(new Vector3(x,   y+1, z));
 		_vertices.Add(new Vector3(x,   y+1, z+1));
@@ -137,7 +142,7 @@ public class TerrainChunk : MonoBehaviour
 	
 	private void AddBottomFace(int y, int x, int z)
 	{
-		if (y != 0 && _map[y - 1, x, z] != 0) { return; }
+		if (GetWorldBlock(y - 1, x, z) != 0) { return; }
 		
 		_vertices.Add(new Vector3(x+1, y, z));
 		_vertices.Add(new Vector3(x+1, y, z+1));
@@ -151,7 +156,7 @@ public class TerrainChunk : MonoBehaviour
 
 	private void AddNorthFace(int y, int x, int z)
 	{
-		if (z != ChunkSize - 1 && _map[y, x, z + 1] != 0) { return; }
+		if (GetWorldBlock(y, x, z + 1) != 0) { return; }
 		
 		_vertices.Add(new Vector3(x+1, y,   z+1));
 		_vertices.Add(new Vector3(x+1, y+1, z+1));
@@ -165,7 +170,7 @@ public class TerrainChunk : MonoBehaviour
 
 	private void AddSouthFace(int y, int x, int z)
 	{
-		if (z != 0 && _map[y, x, z - 1] != 0) { return; }
+		if (GetWorldBlock(y, x, z - 1) != 0) { return; }
 		
 		_vertices.Add(new Vector3(x,   y,   z));
 		_vertices.Add(new Vector3(x,   y+1, z));
@@ -179,7 +184,7 @@ public class TerrainChunk : MonoBehaviour
 	
 	private void AddWestFace(int y, int x, int z)
 	{
-		if (x != 0 && _map[y, x - 1, z] != 0) { return; }
+		if (GetWorldBlock(y, x - 1, z) != 0) { return; }
 		
 		_vertices.Add(new Vector3(x, y,   z+1));
 		_vertices.Add(new Vector3(x, y+1, z+1));
@@ -194,7 +199,7 @@ public class TerrainChunk : MonoBehaviour
 	
 	private void AddEastFace(int y, int x, int z)
 	{
-		if (x != ChunkSize - 1 && _map[y, x + 1, z] != 0) { return; }
+		if (GetWorldBlock(y, x + 1, z) != 0) { return; }
 		
 		_vertices.Add(new Vector3(x+1, y,   z));
 		_vertices.Add(new Vector3(x+1, y+1, z));
@@ -206,15 +211,15 @@ public class TerrainChunk : MonoBehaviour
 		AddTriangles();
 	}
 
-	private void Generate()
-	{
+	public void RecomputeMesh()
+	{	
 		for (var y = 0; y < ChunkSize; y++) // layers
 		{
 			for (var x = 0; x < ChunkSize; x++)
 			{
 				for (var z = 0; z < ChunkSize; z++)
 				{
-					if (isEmpty(y, x, z)) { continue; }
+					if (IsEmpty(y, x, z)) { continue; }
 					
 					AddTopFace(y,x,z);
 					AddBottomFace(y,x,z);
@@ -226,14 +231,13 @@ public class TerrainChunk : MonoBehaviour
 			}
 		}
 		
-		Mesh mesh = new Mesh();
-		mesh.vertices = _vertices.ToArray();
-		mesh.triangles = _triangles.ToArray();
-		mesh.normals = _normals.ToArray();
-		mesh.uv = _uv.ToArray();
+		_meshFilter.mesh.Clear();
+		_meshFilter.mesh.vertices = _vertices.ToArray();
+		_meshFilter.mesh.normals = _normals.ToArray();
+		_meshFilter.mesh.uv = _uv.ToArray();
+		_meshFilter.mesh.triangles = _triangles.ToArray();
 		
-		_meshFilter.mesh = mesh;
-		_collider.sharedMesh = mesh;
+		_collider.sharedMesh = _meshFilter.mesh;
 		
 		_vertices.Clear();
 		_triangles.Clear();

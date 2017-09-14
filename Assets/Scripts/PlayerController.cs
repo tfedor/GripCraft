@@ -8,33 +8,23 @@ public class PlayerController : MonoBehaviour
 	private const int BuildRange = 5;
 	
 	private Vector3 _cursor;
-	private Vector3 _prevChunk;
-
-	private Transform _lastChunk;
-
-	private WorldGenerator _generator;
+	private WorldGenerator _world;
 
 	void Start()
 	{
 		Cursor.lockState = CursorLockMode.Locked;
 		_cursor = new Vector3(Camera.main.pixelWidth*0.5f, Camera.main.pixelHeight*0.5f);
 
-		_generator = GameObject.Find("WorldOrigin").GetComponent<WorldGenerator>();
+		_world = GameObject.Find("WorldOrigin").GetComponent<WorldGenerator>();
 	}
 
 	public void GetCurrentChunkPos()
 	{
-		Ray ray = new Ray(transform.position, Vector3.down);
-		RaycastHit hit;
-		if (Physics.Raycast(ray, out hit, 100))
+		TerrainChunk chunk = _world.GetChunkAtPosition(transform.position.x, 0, transform.position.z);
+		if (chunk && !chunk.Visited)
 		{
-			if (_lastChunk != hit.transform)
-			{
-				_lastChunk = hit.transform;
-				_generator.CreateInDiameter(3, hit.transform);
-				
-				// TODO set visited chunk
-			}
+			_world.CreateInDiameter(4, chunk.transform);
+			chunk.Visited = true;
 		}
 	}
 	
@@ -75,10 +65,26 @@ public class PlayerController : MonoBehaviour
 
 			if (Input.GetButtonDown("Fire1"))
 			{
-				chunk.Hit(hit);
-			} else if (Input.GetButtonDown("Fire2"))
+				Vector3 cubePos = hit.point - hit.normal * TerrainChunk.CubeHalfWidth;
+				int x = Mathf.FloorToInt(cubePos.x);
+				int y = Mathf.FloorToInt(cubePos.y);
+				int z = Mathf.FloorToInt(cubePos.z);
+
+				_world.SetBlock(y, x, z, 0);
+			}
+			else if (Input.GetButtonDown("Fire2"))
 			{
-				chunk.Add(hit);
+				Vector3 cubePos = hit.point + hit.normal * TerrainChunk.CubeHalfWidth;
+				int x = Mathf.FloorToInt(cubePos.x);
+				int y = Mathf.FloorToInt(cubePos.y);
+				int z = Mathf.FloorToInt(cubePos.z);
+
+				if (_world.SetBlock(y, x, z, 1) != chunk)
+				{
+					Debug.Log("different chunk, redraw");
+					chunk.RecomputeMesh();
+				}
+				
 			}
 		}
 		

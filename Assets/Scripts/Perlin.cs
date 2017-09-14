@@ -19,9 +19,9 @@ public class Perlin
     }
 
     public float noise(float x, float y)
-    {
-        x = x % seed.Length;
-        y = y % seed.Length;
+    {   
+        x = x % 9;
+        y = y % 9;
         
         Vector2 point = new Vector2(x, y);
         
@@ -30,6 +30,13 @@ public class Perlin
         int x1 = x0 + 1;
         int y1 = y0 + 1;
 
+        if (x0 < 0) { x0 += 9; }
+        if (x1 < 0) { x1 += 9; }
+        
+        if (y0 < 0) { y0 += 9; }
+        if (y1 < 0) { y1 += 9; }
+        
+        
         float ix1 = Mathf.Lerp(
             Vector2.Dot(seed[x0, y0], new Vector2(x0, y0) - point),
             Vector2.Dot(seed[x1, y0], new Vector2(x1, y0) - point),
