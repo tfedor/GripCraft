@@ -10,22 +10,32 @@ public class PlayerController : MonoBehaviour
 	private Vector3 _cursor;
 	private Vector3 _prevChunk;
 
+	private Transform _lastChunk;
+
+	private WorldGenerator _generator;
+
 	void Start()
 	{
 		Cursor.lockState = CursorLockMode.Locked;
 		_cursor = new Vector3(Camera.main.pixelWidth*0.5f, Camera.main.pixelHeight*0.5f);
-		
-		 
+
+		_generator = GameObject.Find("WorldOrigin").GetComponent<WorldGenerator>();
 	}
 
-	public Vector3 GetCurrentChunkPos()
+	public void GetCurrentChunkPos()
 	{
-		// TODO
-		_prevChunk = new Vector3(
-			Mathf.FloorToInt(transform.position.x)%TerrainChunk.ChunkSize,
-			Mathf.FloorToInt(transform.position.y)%TerrainChunk.ChunkSize,
-			Mathf.FloorToInt(transform.position.z)%TerrainChunk.ChunkSize
-		);
+		Ray ray = new Ray(transform.position, Vector3.down);
+		RaycastHit hit;
+		if (Physics.Raycast(ray, out hit, 100))
+		{
+			if (_lastChunk != hit.transform)
+			{
+				_lastChunk = hit.transform;
+				_generator.CreateInDiameter(3, hit.transform);
+				
+				// TODO set visited chunk
+			}
+		}
 	}
 	
 	void Update ()
@@ -70,6 +80,8 @@ public class PlayerController : MonoBehaviour
 			{
 				chunk.Add(hit);
 			}
-		}	
+		}
+		
+		GetCurrentChunkPos();
 	}
 }

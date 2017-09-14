@@ -13,15 +13,6 @@ public class Dir
 		return (dir + 2) % 4;
 	}
 
-	public static bool IsHorizontal(int dir)
-	{
-		return (dir & 1) != 0;
-	}
-	public static bool IsVertical(int dir)
-	{
-		return (dir & 1) == 0;
-	}
-
 	public static Vector3 Vector(int dir)
 	{
 		switch (dir)

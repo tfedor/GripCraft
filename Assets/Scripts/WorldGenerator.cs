@@ -8,77 +8,72 @@ public class WorldGenerator : MonoBehaviour
 {
 	public GameObject WorldChunkPrefab;
 
-	private TerrainChunk _originChunk;
-	private Dictionary<Tuple<int, int, int>, TerrainChunk> _chunkMap; 
+	private readonly Dictionary<Vector3, TerrainChunk> _chunkMap
+		= new Dictionary<Vector3, TerrainChunk>(); 
 
 	void Start ()
 	{
-		_originChunk = Instantiate(WorldChunkPrefab).GetComponent<TerrainChunk>();
+		TerrainChunk chunk = Instantiate(WorldChunkPrefab).GetComponent<TerrainChunk>();
+		chunk.transform.parent = transform;
+		SetChunk(chunk);
 		
-		TerrainChunk prev = _originChunk;
+		TerrainChunk prev = chunk;
 		for (var i = 1; i < 5; i++)
 		{
-			CreateInDiameter(i, prev);
-			prev = prev.GetNbr(Dir.North);
-		}
-		
-	}
-
-	/**
-	 * When creating new chunk, check whether there isn't a neighbor already.
-	 * When creating chunk north, then check whether parent doesn't have west/east neihgbor
-	 * and whether that neighbor doesn't have north neighbor
-	 * Similarly for other directions
-	 */
-	void CheckSecondNbrs(TerrainChunk parent, int firstDir, int secondDir, TerrainChunk newChunk)
-	{
-		TerrainChunk nbr = parent.GetNbr(firstDir);
-		if (nbr)
-		{
-			nbr = nbr.GetNbr(secondDir);
-			if (nbr)
-			{
-				nbr.SetNbr(Dir.Opposite(firstDir), newChunk);
-				newChunk.SetNbr(firstDir, nbr);
-			}
+			CreateInDiameter(i, prev.transform);
+			prev = GetNbrChunk(Dir.North, prev);
 		}
 	}
 	
-	TerrainChunk CreateChunk(int dir, TerrainChunk parent)
+	void SetChunk(TerrainChunk chunk)
 	{
-		if (parent.GetNbr(dir)) { return null; }
+		var pos = chunk.transform.position;
+		_chunkMap[pos] = chunk;
+	}
+	
+	TerrainChunk GetChunk(Vector3 position)
+	{
+		if (!_chunkMap.ContainsKey(position)) { return null; }
+		return _chunkMap[position];
+	}
+
+	TerrainChunk GetNbrChunk(int dir, TerrainChunk chunk)
+	{
+		return GetChunk(GetNbrChunkPosition(dir, chunk.transform));
+	}
+
+	Vector3 GetNbrChunkPosition(int dir, Transform chunk)
+	{
+		return chunk.position + TerrainChunk.ChunkSize * Dir.Vector(dir);
+	}
+
+	TerrainChunk CreateChunk(int dir, Transform parent)
+	{
+		var chunkPos = GetNbrChunkPosition(dir, parent);
 		
-		TerrainChunk chunk = Instantiate(WorldChunkPrefab).GetComponent<TerrainChunk>();
+		TerrainChunk chunk = GetChunk(chunkPos);
+		if (GetChunk(chunkPos))
+		{
+			return chunk;
+		}
+		
+		chunk = Instantiate(WorldChunkPrefab).GetComponent<TerrainChunk>();
 		chunk.transform.parent = parent.transform.parent;
-		chunk.transform.position = parent.transform.position + TerrainChunk.ChunkSize * Dir.Vector(dir);
-
-		parent.SetNbr(dir, chunk);
-		chunk.SetNbr(Dir.Opposite(dir), parent);
-		
-		if (Dir.IsVertical(dir))
-		{
-			CheckSecondNbrs(parent, Dir.West, dir, chunk);
-			CheckSecondNbrs(parent, Dir.East, dir, chunk);
-		}
-		else
-		{
-			CheckSecondNbrs(parent, Dir.North, dir, chunk);
-			CheckSecondNbrs(parent, Dir.South, dir, chunk);
-		}
-
+		chunk.transform.position = chunkPos;
+		SetChunk(chunk);
 		return chunk;
 	}
 
-	void CreateInDiameter(int level, TerrainChunk parent)
+	public void CreateInDiameter(int level, Transform parent)
 	{
 		int count = 4*level*2;
 		int steps = level;
 		
-		parent = CreateChunk(Dir.North, parent);
+		parent = CreateChunk(Dir.North, parent).transform;
 		int dir = Dir.East;
 		for (var i=0; i < count; i++)
 		{
-			parent = CreateChunk(dir, parent);
+			parent = CreateChunk(dir, parent).transform;
 			
 			if (--steps == 0)
 			{

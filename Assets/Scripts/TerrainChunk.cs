@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -11,25 +12,20 @@ public class TerrainChunk : MonoBehaviour
 	private Mesh _chunk;
 
 	public const int ChunkSize = 16;
-	private short[,,] _map = new short[16,16,16];
+	private readonly short[,,] _map = new short[16,16,16];
 
-	List<Vector3> _vertices;
-	List<Vector3> _normals;
-	List<Vector2> _uv;
-	List<int> _triangles;
+	private readonly List<Vector3> _vertices = new List<Vector3>();
+	private readonly List<Vector3> _normals = new List<Vector3>();
+	private readonly List<Vector2> _uv = new List<Vector2>();
+	private readonly List<int> _triangles = new List<int>();
 	private int _v; // vertex index
 
-	private TerrainChunk[] _nbrs = new TerrainChunk[] {null, null, null, null};
+	public bool Visited = false;
 
 	void Start ()
     {
         _meshFilter = GetComponent<MeshFilter>();
 	    _collider = GetComponent<MeshCollider>();
-	    
-	    _vertices = new List<Vector3>();
-	    _normals = new List<Vector3>();
-	    _uv = new List<Vector2>();
-	    _triangles = new List<int>();
 	    
 	    // TODO generation
 	    Perlin perlin = new Perlin(10, 10);
@@ -244,15 +240,5 @@ public class TerrainChunk : MonoBehaviour
 		_normals.Clear();
 		_uv.Clear();
 		_v = 0;
-	}
-
-	public void SetNbr(int dir, TerrainChunk chunk)
-	{
-		_nbrs[dir] = chunk;		
-	}
-
-	public TerrainChunk GetNbr(int dir)
-	{
-		return _nbrs[dir];
 	}
 }
