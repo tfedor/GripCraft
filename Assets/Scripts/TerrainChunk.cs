@@ -1,18 +1,16 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using UnityEditor;
-using UnityEngine; 
-	
+﻿using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.UI;
+
 public class TerrainChunk : MonoBehaviour
-{
+{	
 	private const float CubeHalfWidth = 0.5f;
 	
     private MeshFilter _meshFilter;
 	private MeshCollider _collider;
-    private Mesh _chunk;
-	
-	const int ChunkSize = 16;
+	private Mesh _chunk;
+
+	public const int ChunkSize = 16;
 	private short[,,] _map = new short[16,16,16];
 
 	List<Vector3> _vertices;
@@ -21,7 +19,9 @@ public class TerrainChunk : MonoBehaviour
 	List<int> _triangles;
 	private int _v; // vertex index
 
-    void Start ()
+	private TerrainChunk[] _nbrs = new TerrainChunk[] {null, null, null, null};
+
+	void Start ()
     {
         _meshFilter = GetComponent<MeshFilter>();
 	    _collider = GetComponent<MeshCollider>();
@@ -32,13 +32,28 @@ public class TerrainChunk : MonoBehaviour
 	    _triangles = new List<int>();
 	    
 	    // TODO generation
+	    Perlin perlin = new Perlin(10, 10);
+	    var seedX = 2.2412f;
+	    var seedY = 1.12412f;
+	    
+	    int[,] heightMap = new int[ChunkSize,ChunkSize];
+	    for (var x = 0; x < ChunkSize; x++)
+	    {
+		    for (var z = 0; z < ChunkSize; z++)
+		    {
+			    // TODO
+			    var noise = perlin.noise(seedX + (float)x / ChunkSize - 1, seedY + (float) z / ChunkSize - 1);
+			    heightMap[x,z] = 1 + Mathf.RoundToInt((1 + noise) * 7);
+		    }
+	    }
+	    
 	    for (var y = 0; y < ChunkSize; y++)
 	    {
 		    for (var x = 0; x < ChunkSize; x++)
 		    {
 			    for (var z = 0; z < ChunkSize; z++)
 			    {
-				    _map[y, x, z] = (short)(y < 4 ? 1 : 0);
+				    _map[y, x, z] = (short)(y < heightMap[x, z] ? 1 : 0);
 			    }
 		    }
 	    }
@@ -231,4 +246,13 @@ public class TerrainChunk : MonoBehaviour
 		_v = 0;
 	}
 
+	public void SetNbr(int dir, TerrainChunk chunk)
+	{
+		_nbrs[dir] = chunk;		
+	}
+
+	public TerrainChunk GetNbr(int dir)
+	{
+		return _nbrs[dir];
+	}
 }

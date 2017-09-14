@@ -8,11 +8,24 @@ public class PlayerController : MonoBehaviour
 	private const int BuildRange = 5;
 	
 	private Vector3 _cursor;
+	private Vector3 _prevChunk;
 
 	void Start()
 	{
 		Cursor.lockState = CursorLockMode.Locked;
 		_cursor = new Vector3(Camera.main.pixelWidth*0.5f, Camera.main.pixelHeight*0.5f);
+		
+		 
+	}
+
+	public Vector3 GetCurrentChunkPos()
+	{
+		// TODO
+		_prevChunk = new Vector3(
+			Mathf.FloorToInt(transform.position.x)%TerrainChunk.ChunkSize,
+			Mathf.FloorToInt(transform.position.y)%TerrainChunk.ChunkSize,
+			Mathf.FloorToInt(transform.position.z)%TerrainChunk.ChunkSize
+		);
 	}
 	
 	void Update ()

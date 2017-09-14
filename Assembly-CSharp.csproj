@@ -53,8 +53,11 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Assets\Scripts\Block.cs" />
+    <Compile Include="Assets\Scripts\Dir.cs" />
+    <Compile Include="Assets\Scripts\Perlin.cs" />
     <Compile Include="Assets\Scripts\PlayerController.cs" />
     <Compile Include="Assets\Scripts\TerrainChunk.cs" />
+    <Compile Include="Assets\Scripts\WorldGenerator.cs" />
     <Reference Include="UnityEngine.UI">
       <HintPath>C:/Programs/Unity/Editor/Data/UnityExtensions/Unity/GUISystem/UnityEngine.UI.dll</HintPath>
     </Reference>
