@@ -18,4 +18,16 @@ public class Block
 		Stone = 1,
 		Gem = 0
 	}
+
+	public static int Hitpoints(Type type)
+	{
+		switch(type)
+		{
+			case Type.Ground: return 3;
+			case Type.Sand: return 1;
+			case Type.Stone: return 5;
+			case Type.Gem: return 10;
+		}
+		return 0;
+	}
 }

@@ -5,11 +5,15 @@ public class WorldGenerator : MonoBehaviour
 {
 	public GameObject WorldChunkPrefab;
 
-	private Vector3[] _directions = {Vector3.forward, Vector3.right, Vector3.back, Vector3.left}; 
+	private readonly Vector3[] _directions = {Vector3.forward, Vector3.right, Vector3.back, Vector3.left}; 
 	
 	private readonly Dictionary<Vector3, TerrainChunk> _chunkMap
 		= new Dictionary<Vector3, TerrainChunk>();
 
+	private readonly Dictionary<Vector3, short> _hitMap
+		= new Dictionary<Vector3, short>();
+
+	
 	public Perlin perlin;
 	
 	void Start ()
@@ -112,7 +116,6 @@ public class WorldGenerator : MonoBehaviour
 		}
 	}
 
-
 	// in world coordinates
 
 	public TerrainChunk GetChunkAtPosition(float x, float y, float z)
@@ -153,6 +156,37 @@ public class WorldGenerator : MonoBehaviour
 		return chunk.GetBlock(by, bx, bz);
 	}
 	
+	public void HitBlock(int y, int x, int z, TerrainChunk chunk)
+	{
+		Vector3 blockPosition = new Vector3(x,y,z);
+		int by = y % TerrainChunk.ChunkSize;
+		int bx = x % TerrainChunk.ChunkSize;
+		int bz = z % TerrainChunk.ChunkSize;
+		
+		if (by < 0) { by += TerrainChunk.ChunkSize; }
+		if (bx < 0) { bx += TerrainChunk.ChunkSize; }
+		if (bz < 0) { bz += TerrainChunk.ChunkSize; }
+		
+
+		int hits = 1;
+		if (_hitMap.ContainsKey(blockPosition))
+		{
+			hits += _hitMap[blockPosition];
+		}
+		
+		int hitpoints = Block.Hitpoints(chunk.GetBlock(by, bx, bz));
+		
+		if (hits >= hitpoints)
+		{
+			_hitMap.Remove(blockPosition);
+			SetBlock(y, x, z, Block.Type.Empty);
+		}
+		else
+		{
+			_hitMap[blockPosition] = (short)hits;
+		}
+	}
+	
 	public TerrainChunk SetBlock(int y, int x, int z, Block.Type type)
 	{
 		int by = y % TerrainChunk.ChunkSize;
@@ -167,8 +201,6 @@ public class WorldGenerator : MonoBehaviour
 
 		TerrainChunk chunk = CreateChunk(chunkPos);
 		chunk.SetBlock(by, bx, bz, type);
-		
-		Debug.Log(by);
 		
 		// if digging down, ensure there's new chunk
 		if (type == Block.Type.Empty && by == 0)

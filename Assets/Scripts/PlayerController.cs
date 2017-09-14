@@ -115,9 +115,10 @@ public class PlayerController : MonoBehaviour
 							chunk.RecomputeMesh();
 						}			
 					}
-				} else {
-					_world.SetBlock(y, x, z, Block.Type.Empty);
-					
+				}
+				else
+				{
+					_world.HitBlock(y, x, z, chunk);
 				}
 				
 			}

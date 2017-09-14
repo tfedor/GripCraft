@@ -14,7 +14,7 @@ public class TerrainChunk : MonoBehaviour
 
 	public const int ChunkSize = 16;
 	private readonly short[,,] _map = new short[16,16,16];
-
+	
 	private readonly List<Vector3> _vertices = new List<Vector3>();
 	private readonly List<Vector3> _normals = new List<Vector3>();
 	private readonly List<Vector2> _uv = new List<Vector2>();
