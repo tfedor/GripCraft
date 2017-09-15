@@ -31,18 +31,18 @@ public class PlayerController : MonoBehaviour
 
 		_world = GameObject.Find("WorldOrigin").GetComponent<WorldGenerator>();
 		_ui = GameObject.Find("UI").GetComponent<UIController>();
-
-		transform.position = new Vector3(
-			0.5f, 
-			_world.GetHeight(0, 0) + _controller.radius + _controller.height * 0.5f,
-			0.5f
-		);
 	}
 
 	void Start()
 	{
 		_ui.SetMode(_buildMode);
 		_ui.SelectType(_selectedType);
+		
+		transform.position = new Vector3(
+			0.5f, 
+			_world.GetHeight(0, 0) + _controller.radius + _controller.height * 0.5f,
+			0.5f
+		);
 	}
 	
 	void Move()
