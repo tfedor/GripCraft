@@ -1,18 +1,22 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using System.Diagnostics;
 using UnityEngine;
+using Debug = UnityEngine.Debug;
 
 public class TerrainChunk : MonoBehaviour
 {
+	public const int ChunkSize = 16;
+	public const int RenderDistance = 5 * 16 * 5 * 16;
+	
 	private WorldGenerator _generator;
 	
 	public const float CubeHalfWidth = 0.5f;
 	
+	private MeshRenderer _meshRenderer;
     private MeshFilter _meshFilter;
 	private MeshCollider _collider;
 	private Mesh _chunk;
 
-	public const int ChunkSize = 16;
 	private readonly short[,,] _map = new short[16,16,16];
 	
 	private readonly List<Vector3> _vertices = new List<Vector3>();
@@ -31,6 +35,7 @@ public class TerrainChunk : MonoBehaviour
 
 	void Awake ()
     {
+	    _meshRenderer = GetComponent<MeshRenderer>();
 	    _meshFilter = GetComponent<MeshFilter>();
 	    _collider = GetComponent<MeshCollider>();
 
@@ -39,43 +44,39 @@ public class TerrainChunk : MonoBehaviour
 
 	public void Generate()
 	{
-		_wy = (int)transform.position.y;
-		_wx = (int)transform.position.x;
-		_wz = (int)transform.position.z;
-		
+		_wy = (int) transform.position.y;
+		_wx = (int) transform.position.x;
+		_wz = (int) transform.position.z;
+
 		_generator = transform.parent.gameObject.GetComponent<WorldGenerator>();
-	    
-		// TODO generation
-		float seedX = 256.2412f;
-		float seedZ = 113.12412f;
-		float step = 1f/64;
-	    
-		int[,] heightMap = new int[ChunkSize,ChunkSize];
+
+		int maxHeight = 0;
+		
 		for (var x = 0; x < ChunkSize; x++)
 		{
 			for (var z = 0; z < ChunkSize; z++)
 			{
-				// TODO
-				var noise = Mathf.PerlinNoise((seedX + _wx + x) * step, (seedZ + _wz + z) * step);
-				heightMap[x,z] = 1 + Mathf.RoundToInt(1 + noise * 14);
-			}
-		}
-	    
-		for (var y = 0; y < ChunkSize; y++)
-		{
-			for (var x = 0; x < ChunkSize; x++)
-			{
-				for (var z = 0; z < ChunkSize; z++)
+				for (var y = 0; y < ChunkSize; y++)
 				{
-					_map[y, x, z] = (short)(_wy + y < heightMap[x, z] ? Block.Type.Ground : Block.Type.Empty);
+					int height = _generator.GetHeight(_wx + x, _wz + z);
+					if (height > maxHeight) { maxHeight = height; }
+
+					_map[y, x, z] = (short)(_wy + y < height ? Block.Type.Ground : Block.Type.Empty);
 				}
 			}
-		}		
+		}
+
+		if (maxHeight - _wy > ChunkSize)
+		{
+			_generator.CreateChunk(transform.position + Vector3.up * ChunkSize);
+		}
 	}
 
-	void Start()
+	void Update()
 	{
-		RecomputeMesh();
+		float x = transform.position.x - Camera.main.transform.position.x;
+		float y = transform.position.z - Camera.main.transform.position.z;
+		_meshRenderer.enabled = x*x + y*y < RenderDistance;
 	}
 	
 	public void SetBlock(int y, int x, int z, Block.Type type)

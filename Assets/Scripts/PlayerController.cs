@@ -31,6 +31,12 @@ public class PlayerController : MonoBehaviour
 
 		_world = GameObject.Find("WorldOrigin").GetComponent<WorldGenerator>();
 		_ui = GameObject.Find("UI").GetComponent<UIController>();
+
+		transform.position = new Vector3(
+			0.5f, 
+			_world.GetHeight(0, 0) + _controller.radius + _controller.height * 0.5f,
+			0.5f
+		);
 	}
 
 	void Start()
@@ -128,21 +134,21 @@ public class PlayerController : MonoBehaviour
 			CursorCube.SetActive(false);
 		}
 		
-		//GetCurrentChunkPos(); // TODO
+		GetCurrentChunkPos();
 	}
-	
-	
 	
 	public void GetCurrentChunkPos()
 	{
 		TerrainChunk chunk = _world.GetChunkAtPosition(transform.position.x, 0, transform.position.z);
 		if (chunk && !chunk.Visited)
 		{
-			_world.CreateInDiameter(4, chunk.transform);
+			_world.CreateInDiameter(2, chunk); // to generate new chunks
+			_world.CreateInDiameter(1, chunk); // to update meshes
 			chunk.Visited = true;
 		}
+		
+		_world.RecomputeMeshes();
 	}
-
 
 	private void OnTriggerEnter(Collider other)
 	{

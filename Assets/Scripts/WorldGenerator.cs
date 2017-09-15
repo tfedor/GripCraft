@@ -5,31 +5,48 @@ public class WorldGenerator : MonoBehaviour
 {
 	public GameObject WorldChunkPrefab;
 
-	private readonly Vector3[] _directions = {Vector3.forward, Vector3.right, Vector3.back, Vector3.left}; 
-	
 	private readonly Dictionary<Vector3, TerrainChunk> _chunkMap
 		= new Dictionary<Vector3, TerrainChunk>();
 
 	private readonly Dictionary<Vector3, short> _hitMap
 		= new Dictionary<Vector3, short>();
 
-	
-	public Perlin perlin;
+	private readonly Queue<TerrainChunk> _recompute = new Queue<TerrainChunk>();
+
+	private int _maxHeight = 31;
+	private float _seedX;
+	private float _seedZ;
+	private float _step = 1 / 64f;
 	
 	void Start ()
 	{
-		perlin = new Perlin(10, 10);
+		Random.InitState((int)System.DateTime.Now.Ticks);
+		_seedX = Random.Range(100f, 999f);
+		_seedZ = Random.Range(100f, 999f);
 		
 		TerrainChunk chunk = Instantiate(WorldChunkPrefab).GetComponent<TerrainChunk>();
 		chunk.transform.parent = transform;
-		chunk.Generate();
 		chunk.Visited = true;
-		SetChunk(chunk);
+		chunk.Generate();
+		SaveChunk(chunk);
+		
+		_recompute.Enqueue(chunk);
 
-		CreateLayers(5, chunk);
+		for (var i = 1; i < 5; i++)
+		{
+			CreateInDiameter(i, chunk);
+		}
+		
+		RecomputeMeshes();
+	}
+
+	public int GetHeight(int x, int z)
+	{
+		var noise = Mathf.PerlinNoise((_seedX + x) * _step, (_seedZ + z) * _step);
+		return 1 + Mathf.RoundToInt(1 + noise * _maxHeight);
 	}
 	
-	void SetChunk(TerrainChunk chunk)
+	void SaveChunk(TerrainChunk chunk)
 	{
 		var pos = chunk.transform.position;
 		_chunkMap[pos] = chunk;
@@ -43,39 +60,15 @@ public class WorldGenerator : MonoBehaviour
 
 	public TerrainChunk GetNbrChunk(Vector3 dir, TerrainChunk chunk)
 	{
-		return GetChunk(GetNbrChunkPosition(dir, chunk.transform));
+		return GetChunk(chunk.transform.position + TerrainChunk.ChunkSize * dir);
 	}
-
-	public Vector3 GetNbrChunkPosition(Vector3 dir, Transform chunk)
-	{
-		return chunk.position + TerrainChunk.ChunkSize * dir;
-	}
-
-	public TerrainChunk CreateChunk(Vector3 dir, Transform parent)
-	{
-		var chunkPos = GetNbrChunkPosition(dir, parent);
-		
-		TerrainChunk chunk = GetChunk(chunkPos);
-		if (GetChunk(chunkPos))
-		{
-			return chunk;
-		}
-		
-		chunk = Instantiate(WorldChunkPrefab).GetComponent<TerrainChunk>();
-		chunk.transform.parent = parent.transform.parent;
-		chunk.transform.position = chunkPos;
-		chunk.Generate();
-		SetChunk(chunk);
-
-		parent.GetComponent<TerrainChunk>().RecomputeMesh();
-		
-		return chunk;
-	}
+	
 	public TerrainChunk CreateChunk(Vector3 position)
 	{
 		TerrainChunk chunk = GetChunk(position);
-		if (GetChunk(position))
+		if (chunk)
 		{
+			_recompute.Enqueue(chunk);
 			return chunk;
 		}
 		
@@ -83,39 +76,39 @@ public class WorldGenerator : MonoBehaviour
 		chunk.transform.parent = transform;
 		chunk.transform.position = position;
 		chunk.Generate();
-		SetChunk(chunk);
+		SaveChunk(chunk);
 		
+		_recompute.Enqueue(chunk);
 		return chunk;
 	}
 
-	public void CreateInDiameter(int level, Transform parent)
+	public void CreateInDiameter(int distance, TerrainChunk origin)
 	{
-		int count = 4*level*2;
-		int steps = level;
+		Vector3 o = origin.transform.position;
+		const int chunkSize = TerrainChunk.ChunkSize;
 		
-		parent = CreateChunk(_directions[0], parent).transform;
-		int dir = 1;
-		for (var i=0; i < count; i++)
+		int range = chunkSize*distance;
+		
+		for (int i = -range; i <= range; i += chunkSize)
 		{
-			parent = CreateChunk(_directions[dir%4], parent).transform;
-			
-			if (--steps == 0)
-			{
-				dir++;
-				steps = level*2;
-			}
+			CreateChunk(new Vector3(o.x + i, o.y, o.z + range));
+			CreateChunk(new Vector3(o.x + i, o.y, o.z - range));
+		}
+		for (int i = -range+chunkSize; i < range; i += chunkSize)
+		{
+			CreateChunk(new Vector3(o.x + range, o.y, o.z + i));
+			CreateChunk(new Vector3(o.x - range, o.y, o.z - i));
 		}
 	}
-
-	public void CreateLayers(int layers, TerrainChunk origin)
+	
+	public void RecomputeMeshes()
 	{
-		for (var i = 1; i < layers; i++)
+		while (_recompute.Count > 0)
 		{
-			CreateInDiameter(i, origin.transform);
-			origin = GetNbrChunk(Vector3.forward, origin);
+			_recompute.Dequeue().RecomputeMesh();
 		}
 	}
-
+	
 	// in world coordinates
 
 	public TerrainChunk GetChunkAtPosition(float x, float y, float z)
@@ -132,10 +125,7 @@ public class WorldGenerator : MonoBehaviour
 		if (bx < 0) { bx += TerrainChunk.ChunkSize; }
 		if (bz < 0) { bz += TerrainChunk.ChunkSize; }
 		
-		Vector3 chunkPos = new Vector3(ix - bx, iy - by, iz - bz);
-		
-		if (!_chunkMap.ContainsKey(chunkPos)) { return null; }
-		return _chunkMap[chunkPos];
+		return GetChunk(new Vector3(ix - bx, iy - by, iz - bz));
 	}
 	
 	public Block.Type GetBlock(int y, int x, int z)
@@ -167,7 +157,6 @@ public class WorldGenerator : MonoBehaviour
 		if (bx < 0) { bx += TerrainChunk.ChunkSize; }
 		if (bz < 0) { bz += TerrainChunk.ChunkSize; }
 		
-
 		int hits = 1;
 		if (_hitMap.ContainsKey(blockPosition))
 		{
@@ -189,13 +178,15 @@ public class WorldGenerator : MonoBehaviour
 	
 	public TerrainChunk SetBlock(int y, int x, int z, Block.Type type)
 	{
-		int by = y % TerrainChunk.ChunkSize;
-		int bx = x % TerrainChunk.ChunkSize;
-		int bz = z % TerrainChunk.ChunkSize;
+		const int chunkSize = TerrainChunk.ChunkSize;
 		
-		if (by < 0) { by += TerrainChunk.ChunkSize; }
-		if (bx < 0) { bx += TerrainChunk.ChunkSize; }
-		if (bz < 0) { bz += TerrainChunk.ChunkSize; }
+		int by = y % chunkSize;
+		int bx = x % chunkSize;
+		int bz = z % chunkSize;
+		
+		if (by < 0) { by += chunkSize; }
+		if (bx < 0) { bx += chunkSize; }
+		if (bz < 0) { bz += chunkSize; }
 		
 		Vector3 chunkPos = new Vector3(x - bx, y - by, z - bz);
 
@@ -203,24 +194,23 @@ public class WorldGenerator : MonoBehaviour
 		chunk.SetBlock(by, bx, bz, type);
 		
 		// if digging down, ensure there's new chunk
-		if (type == Block.Type.Empty && by == 0)
-		{
-			CreateChunk(Vector3.down, chunk.transform).RecomputeMesh();
-		}
-
 		if (type == Block.Type.Empty)
 		{
-			TerrainChunk nbr = null;
-			if (bx == 0)                               { nbr = GetNbrChunk(Vector3.left, chunk); }
-			else if (bx == TerrainChunk.ChunkSize - 1) { nbr = GetNbrChunk(Vector3.right, chunk); }
-			if (nbr) { nbr.RecomputeMesh(); }
+			if (by == 0) {
+				CreateChunk(chunkPos + Vector3.down * chunkSize);
+			}
 			
-			if (bz == 0)                               { nbr = GetNbrChunk(Vector3.back, chunk); }
-			else if (bz == TerrainChunk.ChunkSize - 1) { nbr = GetNbrChunk(Vector3.forward, chunk); }
-			if (nbr) { nbr.RecomputeMesh(); }
+			TerrainChunk nbr = null;
+			if (bx == 0)                  { nbr = GetNbrChunk(Vector3.left, chunk); }
+			else if (bx == chunkSize - 1) { nbr = GetNbrChunk(Vector3.right, chunk); }
+			if (nbr) { _recompute.Enqueue(nbr); }
+			
+			if (bz == 0)                  { nbr = GetNbrChunk(Vector3.back, chunk); }
+			else if (bz == chunkSize - 1) { nbr = GetNbrChunk(Vector3.forward, chunk); }
+			if (nbr) { _recompute.Enqueue(nbr); }
 		}
-		
-		chunk.RecomputeMesh();
+
+		RecomputeMeshes();
 		return chunk;
 	}
 }
