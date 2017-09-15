@@ -11,7 +11,7 @@ public class WorldGenerator : MonoBehaviour
 	private readonly Dictionary<Vector3, short> _hitMap
 		= new Dictionary<Vector3, short>();
 
-	private readonly Queue<TerrainChunk> _recompute = new Queue<TerrainChunk>();
+	private readonly HashSet<TerrainChunk> _recompute = new HashSet<TerrainChunk>();
 
 	private int _maxHeight = 31;
 	private float _seedX;
@@ -30,8 +30,8 @@ public class WorldGenerator : MonoBehaviour
 		chunk.Generate();
 		SaveChunk(chunk);
 		
-		_recompute.Enqueue(chunk);
-
+		MarkToRecompute(chunk);
+		
 		for (var i = 1; i < 5; i++)
 		{
 			CreateInDiameter(i, chunk);
@@ -63,12 +63,15 @@ public class WorldGenerator : MonoBehaviour
 		return GetChunk(chunk.transform.position + TerrainChunk.ChunkSize * dir);
 	}
 	
-	public TerrainChunk CreateChunk(Vector3 position)
+	public TerrainChunk CreateChunk(Vector3 position, bool recomputeExisting)
 	{
 		TerrainChunk chunk = GetChunk(position);
 		if (chunk)
 		{
-			_recompute.Enqueue(chunk);
+			if (recomputeExisting)
+			{
+				MarkToRecompute(chunk);
+			}
 			return chunk;
 		}
 		
@@ -77,8 +80,22 @@ public class WorldGenerator : MonoBehaviour
 		chunk.transform.position = position;
 		chunk.Generate();
 		SaveChunk(chunk);
+
+		MarkToRecompute(chunk);
 		
-		_recompute.Enqueue(chunk);
+		TerrainChunk nbr;
+		nbr = GetNbrChunk(Vector3.forward, chunk);
+		if (nbr) { MarkToRecompute(nbr); }
+		
+		nbr = GetNbrChunk(Vector3.back, chunk);
+		if (nbr) { MarkToRecompute(nbr); }
+		
+		nbr = GetNbrChunk(Vector3.left, chunk);
+		if (nbr) { MarkToRecompute(nbr); }
+		
+		nbr = GetNbrChunk(Vector3.right, chunk);
+		if (nbr) { MarkToRecompute(nbr); }
+		
 		return chunk;
 	}
 
@@ -91,22 +108,28 @@ public class WorldGenerator : MonoBehaviour
 		
 		for (int i = -range; i <= range; i += chunkSize)
 		{
-			CreateChunk(new Vector3(o.x + i, o.y, o.z + range));
-			CreateChunk(new Vector3(o.x + i, o.y, o.z - range));
+			CreateChunk(new Vector3(o.x + i, o.y, o.z + range), false);
+			CreateChunk(new Vector3(o.x + i, o.y, o.z - range), false);
 		}
 		for (int i = -range+chunkSize; i < range; i += chunkSize)
 		{
-			CreateChunk(new Vector3(o.x + range, o.y, o.z + i));
-			CreateChunk(new Vector3(o.x - range, o.y, o.z - i));
+			CreateChunk(new Vector3(o.x + range, o.y, o.z + i), false);
+			CreateChunk(new Vector3(o.x - range, o.y, o.z - i), false);
 		}
+	}
+
+	private void MarkToRecompute(TerrainChunk chunk)
+	{
+		_recompute.Add(chunk);
 	}
 	
 	public void RecomputeMeshes()
 	{
-		while (_recompute.Count > 0)
+		foreach (TerrainChunk chunk in _recompute)
 		{
-			_recompute.Dequeue().RecomputeMesh();
+			chunk.RecomputeMesh();
 		}
+		_recompute.Clear();
 	}
 	
 	// in world coordinates
@@ -190,24 +213,24 @@ public class WorldGenerator : MonoBehaviour
 		
 		Vector3 chunkPos = new Vector3(x - bx, y - by, z - bz);
 
-		TerrainChunk chunk = CreateChunk(chunkPos);
+		TerrainChunk chunk = CreateChunk(chunkPos, true);
 		chunk.SetBlock(by, bx, bz, type);
 		
 		// if digging down, ensure there's new chunk
 		if (type == Block.Type.Empty)
 		{
 			if (by == 0) {
-				CreateChunk(chunkPos + Vector3.down * chunkSize);
+				CreateChunk(chunkPos + Vector3.down * chunkSize, true);
 			}
 			
 			TerrainChunk nbr = null;
 			if (bx == 0)                  { nbr = GetNbrChunk(Vector3.left, chunk); }
 			else if (bx == chunkSize - 1) { nbr = GetNbrChunk(Vector3.right, chunk); }
-			if (nbr) { _recompute.Enqueue(nbr); }
+			if (nbr) { MarkToRecompute(nbr); }
 			
 			if (bz == 0)                  { nbr = GetNbrChunk(Vector3.back, chunk); }
 			else if (bz == chunkSize - 1) { nbr = GetNbrChunk(Vector3.forward, chunk); }
-			if (nbr) { _recompute.Enqueue(nbr); }
+			if (nbr) { MarkToRecompute(nbr); }
 		}
 
 		RecomputeMeshes();

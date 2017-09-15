@@ -84,16 +84,9 @@ public class PlayerController : MonoBehaviour
 		else if (Input.GetKeyDown(KeyCode.Alpha3)) { _selectedType = (Block.Type)2; _ui.SelectType(_selectedType); }
 		else if (Input.GetKeyDown(KeyCode.Alpha4)) { _selectedType = (Block.Type)3; _ui.SelectType(_selectedType); }
 	}
-	
-	void Update ()
+
+	void Cast()
 	{
-		Move();
-		Rotate();
-		BuildOptions();
-
-		
-		// ray cast
-
 		Ray ray = Camera.main.ScreenPointToRay(_cursor);
 		RaycastHit hit;
 		if (Physics.Raycast(ray, out hit, BuildRange))
@@ -133,21 +126,29 @@ public class PlayerController : MonoBehaviour
 		{
 			CursorCube.SetActive(false);
 		}
-		
-		GetCurrentChunkPos();
 	}
 	
-	public void GetCurrentChunkPos()
+	void Update ()
 	{
+		Move();
+		Rotate();
+		BuildOptions();
+		Cast();
+		UpdateWorld();
+	}
+	
+	public void UpdateWorld()
+	{
+		
 		TerrainChunk chunk = _world.GetChunkAtPosition(transform.position.x, 0, transform.position.z);
 		if (chunk && !chunk.Visited)
 		{
-			_world.CreateInDiameter(2, chunk); // to generate new chunks
-			_world.CreateInDiameter(1, chunk); // to update meshes
+			_world.CreateInDiameter(2, chunk);
 			chunk.Visited = true;
+			
+			_world.RecomputeMeshes();
 		}
 		
-		_world.RecomputeMeshes();
 	}
 
 	private void OnTriggerEnter(Collider other)

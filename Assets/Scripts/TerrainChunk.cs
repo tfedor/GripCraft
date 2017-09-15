@@ -1,7 +1,5 @@
 ﻿using System.Collections.Generic;
-using System.Diagnostics;
 using UnityEngine;
-using Debug = UnityEngine.Debug;
 
 public class TerrainChunk : MonoBehaviour
 {
@@ -66,9 +64,10 @@ public class TerrainChunk : MonoBehaviour
 			}
 		}
 
+		// generate new chunk above if needed
 		if (maxHeight - _wy > ChunkSize)
 		{
-			_generator.CreateChunk(transform.position + Vector3.up * ChunkSize);
+			_generator.CreateChunk(transform.position + Vector3.up * ChunkSize, true);
 		}
 	}
 
@@ -91,7 +90,14 @@ public class TerrainChunk : MonoBehaviour
 
 	public Block.Type GetWorldBlock(int y, int x, int z)
 	{
-		return _generator.GetBlock(_wy + y, _wx + x, _wz + z);
+		if (y < 0 || y >= ChunkSize
+		 || x < 0 || x >= ChunkSize
+		 || z < 0 || z >= ChunkSize)
+		{
+			return _generator.GetBlock(_wy + y, _wx + x, _wz + z);
+		}
+		
+		return GetBlock(y, x, z);
 	}
 	
 	private bool IsEmpty(int y, int x, int z)
@@ -218,7 +224,7 @@ public class TerrainChunk : MonoBehaviour
 	}
 
 	public void RecomputeMesh()
-	{	
+	{
 		for (var y = 0; y < ChunkSize; y++) // layers
 		{
 			for (var x = 0; x < ChunkSize; x++)
