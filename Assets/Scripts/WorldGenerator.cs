@@ -223,14 +223,11 @@ public class WorldGenerator : MonoBehaviour
 				CreateChunk(chunkPos + Vector3.down * chunkSize, true);
 			}
 			
-			TerrainChunk nbr = null;
-			if (bx == 0)                  { nbr = GetNbrChunk(Vector3.left, chunk); }
-			else if (bx == chunkSize - 1) { nbr = GetNbrChunk(Vector3.right, chunk); }
-			if (nbr) { MarkToRecompute(nbr); }
+			if (bx == 0)                  { CreateChunk(chunkPos + Vector3.left * chunkSize, true); }
+			else if (bx == chunkSize - 1) { CreateChunk(chunkPos + Vector3.right * chunkSize, true); }
 			
-			if (bz == 0)                  { nbr = GetNbrChunk(Vector3.back, chunk); }
-			else if (bz == chunkSize - 1) { nbr = GetNbrChunk(Vector3.forward, chunk); }
-			if (nbr) { MarkToRecompute(nbr); }
+			if (bz == 0)                  { CreateChunk(chunkPos + Vector3.back * chunkSize, true); }
+			else if (bz == chunkSize - 1) { CreateChunk(chunkPos + Vector3.forward * chunkSize, true); }
 		}
 
 		RecomputeMeshes();
