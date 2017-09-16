@@ -21,6 +21,10 @@ public class PlayerController : MonoBehaviour
 	private bool _enableBuild = true;
 	private bool _buildMode = true;
 	private Block.Type _selectedType = Block.Type.Ground;
+
+	//
+	private TerrainChunk _prevChunk = null;
+	private bool _didChangeChunk = true;
 	
 	void Awake()
 	{
@@ -137,18 +141,28 @@ public class PlayerController : MonoBehaviour
 		UpdateWorld();
 	}
 	
-	public void UpdateWorld()
+	void UpdateWorld()
 	{
 		
 		TerrainChunk chunk = _world.GetChunkAtPosition(transform.position.x, 0, transform.position.z);
-		if (chunk && !chunk.Visited)
+		if (chunk)
 		{
-			_world.CreateInDiameter(2, chunk);
-			chunk.Visited = true;
-			
-			_world.RecomputeMeshes();
-		}
-		
+			if (!chunk.Visited)
+			{
+				_world.CreateInDiameter(2, chunk);
+				chunk.Visited = true;
+				
+				_world.RecomputeMeshes();
+			}
+
+			_didChangeChunk = chunk != _prevChunk;
+			_prevChunk = chunk;
+		}		
+	}
+
+	public bool DidChangeChunk()
+	{
+		return _didChangeChunk;
 	}
 
 	private void OnTriggerEnter(Collider other)

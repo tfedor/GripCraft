@@ -1,4 +1,6 @@
 ﻿
+using UnityEngine;
+
 public class Block
 {
 	public const float TextureSize = 0.25f; 
@@ -29,5 +31,15 @@ public class Block
 			case Type.Gem: return 10;
 		}
 		return 0;
+	}
+
+	public static Type GetType(int height)
+	{
+		float rand = Random.value;
+		if (height < -20 - rand * 30) { return Type.Gem; }
+		if (height <   5 - rand *  3) { return Type.Stone; }
+		if (height <  20 - rand *  6) { return Type.Sand; }
+		if (height <  80 - rand * 20) { return Type.Ground; }
+		return Type.Stone;
 	}
 }

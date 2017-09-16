@@ -1,8 +1,13 @@
 ﻿using System.Collections.Generic;
+using System.Configuration;
 using UnityEngine;
 
 public class WorldGenerator : MonoBehaviour
 {
+	public const int InitialWorldSize = 15;
+	public const int RenderDistance = 7 * 16;
+	public const int MaxHeight = 128;
+	
 	public GameObject WorldChunkPrefab;
 
 	private readonly Dictionary<Vector3, TerrainChunk> _chunkMap
@@ -13,16 +18,35 @@ public class WorldGenerator : MonoBehaviour
 
 	private readonly HashSet<TerrainChunk> _recompute = new HashSet<TerrainChunk>();
 
-	private int _maxHeight = 31;
-	private float _seedX;
-	private float _seedZ;
-	private float _step = 1 / 64f;
+	private float[] _seedX;
+	private float[] _seedZ;
+	private float[] _scale;
+	private float[] _power;
+	private float _powerScale;
+
+	private float _heightSeedX;
+	private float _heightSeedZ;
+	private float _heightScale;
 	
 	void Start ()
 	{
-		Random.InitState((int)System.DateTime.Now.Ticks);
-		_seedX = Random.Range(100f, 999f);
-		_seedZ = Random.Range(100f, 999f);
+		Random.InitState((int)System.DateTime.Now.Ticks); 
+
+		_scale = new[] {1/128f, 1/64f, 1/64f, 1/16f, 1/8f};
+		_power = new[] { 0.8f,     1f,  0.4f,  0.2f, 0.1f};
+		_powerScale = 0;
+		
+		_seedX = new float[_scale.Length];
+		_seedZ = new float[_scale.Length];
+		for (int i = 0; i < _scale.Length; i++) {
+			_seedX[i] = Random.Range(1000f, 9999f);
+			_seedZ[i] = Random.Range(1000f, 9999f);
+			_powerScale += _power[i];
+		}
+
+		_heightSeedX = Random.Range(1000f, 9999f);
+		_heightSeedZ = Random.Range(1000f, 9999f);
+		_heightScale = 1/512f;
 		
 		TerrainChunk chunk = Instantiate(WorldChunkPrefab).GetComponent<TerrainChunk>();
 		chunk.transform.parent = transform;
@@ -32,7 +56,7 @@ public class WorldGenerator : MonoBehaviour
 		
 		MarkToRecompute(chunk);
 		
-		for (var i = 1; i < 5; i++)
+		for (var i = 1; i < InitialWorldSize; i++)
 		{
 			CreateInDiameter(i, chunk);
 		}
@@ -42,10 +66,29 @@ public class WorldGenerator : MonoBehaviour
 
 	public int GetHeight(int x, int z)
 	{
-		var noise = Mathf.PerlinNoise((_seedX + x) * _step, (_seedZ + z) * _step);
-		return 1 + Mathf.RoundToInt(1 + noise * _maxHeight);
+
+		float noise = 0;
+		
+		int levels = _scale.Length;
+		for (int i = 0; i < levels; i++)
+		{
+			noise += _power[i]
+			         * Mathf.PerlinNoise(
+				         (_seedX[i] + x) * _scale[i],
+				         (_seedZ[i] + z) * _scale[i]
+					 );
+		}
+
+		noise /= _powerScale;
+
+		float maxHeight = MaxHeight * Mathf.PerlinNoise(
+			(_heightSeedX + x) * _heightScale,
+			(_heightSeedZ + z) * _heightScale
+		);
+		
+		return 1 + Mathf.RoundToInt(noise * maxHeight);
 	}
-	
+
 	void SaveChunk(TerrainChunk chunk)
 	{
 		var pos = chunk.transform.position;

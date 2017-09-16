@@ -477,6 +477,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 81465c235962b4f4b936f3beb89c7701, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  InitialWorldSize: 15
   WorldChunkPrefab: {fileID: 1874996850896098, guid: a7189d75a9225a04fbfd866d9cb8ecd0,
     type: 2}
 --- !u!4 &552449727

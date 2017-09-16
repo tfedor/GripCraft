@@ -4,7 +4,6 @@ using UnityEngine;
 public class TerrainChunk : MonoBehaviour
 {
 	public const int ChunkSize = 16;
-	public const int RenderDistance = 5 * 16 * 5 * 16;
 	
 	private WorldGenerator _generator;
 	
@@ -39,7 +38,7 @@ public class TerrainChunk : MonoBehaviour
 
 	    _meshFilter.mesh = new Mesh();
     }
-
+	
 	public void Generate()
 	{
 		_wy = (int) transform.position.y;
@@ -47,19 +46,22 @@ public class TerrainChunk : MonoBehaviour
 		_wz = (int) transform.position.z;
 
 		_generator = transform.parent.gameObject.GetComponent<WorldGenerator>();
-
+		
 		int maxHeight = 0;
 		
 		for (var x = 0; x < ChunkSize; x++)
 		{
 			for (var z = 0; z < ChunkSize; z++)
 			{
+				int height = _generator.GetHeight(_wx + x, _wz + z);
+				if (height > maxHeight) { maxHeight = height; }
+				
 				for (var y = 0; y < ChunkSize; y++)
 				{
-					int height = _generator.GetHeight(_wx + x, _wz + z);
-					if (height > maxHeight) { maxHeight = height; }
-
-					_map[y, x, z] = (short)(_wy + y < height ? Block.Type.Ground : Block.Type.Empty);
+					_map[y, x, z] = (short) (_wy + y < height
+						? Block.GetType(_wy + y)
+						: Block.Type.Empty
+					);
 				}
 			}
 		}
@@ -73,9 +75,55 @@ public class TerrainChunk : MonoBehaviour
 
 	void Update()
 	{
+		// manhattan
+		float x = Mathf.Abs(transform.position.x - Camera.main.transform.position.x);
+		float z = Mathf.Abs(transform.position.z - Camera.main.transform.position.z);
+
+		if (x > WorldGenerator.RenderDistance)
+		{
+			_meshRenderer.enabled = false;
+			return;
+		}
+		if (z > WorldGenerator.RenderDistance)
+		{
+			_meshRenderer.enabled = false;
+			return;
+		}
+		_meshRenderer.enabled = true;
+		
+		// more precise, in circle
+		//_meshRenderer.enabled = x*x + z*z < WorldGenerator.RenderDistance * WorldGenerator.RenderDistance;
+		
+		/*
+		// view cone
 		float x = transform.position.x - Camera.main.transform.position.x;
 		float y = transform.position.z - Camera.main.transform.position.z;
-		_meshRenderer.enabled = x*x + y*y < RenderDistance;
+		float dist = x*x + y*y;
+
+		_meshRenderer.enabled = dist < WorldGenerator.RenderDistance;
+		
+		// minimal radius
+		if (dist < WorldGenerator.MinRenderDistance)
+		{
+			_meshRenderer.enabled = true;
+			return;
+		}
+
+		// distance we can see
+		if (dist > WorldGenerator.RenderDistance)
+		{
+			_meshRenderer.enabled = false;
+			return;
+		}
+		
+		// angle we can see
+		Vector2 a = new Vector2(
+			Camera.main.transform.position.x - transform.position.x,
+			Camera.main.transform.position.z - transform.position.z
+		);
+		Vector2 b = new Vector2(Camera.main.transform.forward.x, Camera.main.transform.forward.z);
+		_meshRenderer.enabled = Vector2.Angle(a, b) > 120;
+		*/
 	}
 	
 	public void SetBlock(int y, int x, int z, Block.Type type)
