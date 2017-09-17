@@ -260,11 +260,13 @@ public class WorldGenerator : MonoBehaviour
 		TerrainChunk chunk = CreateChunk(chunkPos, true);
 		chunk.SetBlock(by, bx, bz, type);
 		
-		// if digging down, ensure there's new chunk
 		if (type == Block.Type.Empty)
 		{
-			if (by == 0) {
-				CreateChunk(chunkPos + Vector3.down * chunkSize, true);
+			if (by == 0)                  { CreateChunk(chunkPos + Vector3.down * chunkSize, true); }
+			else if (by == chunkSize - 1)
+			{
+				TerrainChunk upNbr = GetChunk(chunkPos + Vector3.up * chunkSize);
+				if (upNbr) { MarkToRecompute(upNbr); }
 			}
 			
 			if (bx == 0)                  { CreateChunk(chunkPos + Vector3.left * chunkSize, true); }
