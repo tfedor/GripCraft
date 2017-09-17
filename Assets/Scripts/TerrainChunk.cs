@@ -273,6 +273,8 @@ public class TerrainChunk : MonoBehaviour
 
 	public void RecomputeMesh()
 	{
+		bool hasChunkBellow = null != _generator.GetNbrChunk(Vector3.down, this);
+				
 		for (var y = 0; y < ChunkSize; y++) // layers
 		{
 			for (var x = 0; x < ChunkSize; x++)
@@ -280,9 +282,12 @@ public class TerrainChunk : MonoBehaviour
 				for (var z = 0; z < ChunkSize; z++)
 				{
 					if (IsEmpty(y, x, z)) { continue; }
-					
+
+					if (y != 0 || hasChunkBellow)
+					{
+						AddBottomFace(y,x,z);
+					}
 					AddTopFace(y,x,z);
-					AddBottomFace(y,x,z);
 					AddNorthFace(y,x,z);
 					AddSouthFace(y,x,z);
 					AddWestFace(y,x,z);
