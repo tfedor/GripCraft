@@ -26,6 +26,8 @@ public class TerrainChunk : MonoBehaviour
 	private int _wy;
 	private int _wx;
 	private int _wz;
+
+	private int _faces;
 	
 	//
 	public bool Visited = false;
@@ -199,6 +201,8 @@ public class TerrainChunk : MonoBehaviour
 		AddNormals(Vector3.up);
 		AddUv((Block.Type)_map[y,x,z], Block.Side.Top);
 		AddTriangles();
+
+		_faces = _faces | 1;
 	}
 	
 	private void AddBottomFace(int y, int x, int z)
@@ -213,6 +217,8 @@ public class TerrainChunk : MonoBehaviour
 		AddNormals(Vector3.down);		
 		AddUv((Block.Type)_map[y,x,z], Block.Side.Bottom);
 		AddTriangles();
+		
+		_faces = _faces | (1 << 1);
 	}
 
 	private void AddNorthFace(int y, int x, int z)
@@ -227,6 +233,8 @@ public class TerrainChunk : MonoBehaviour
 		AddNormals(Vector3.forward);
 		AddUv((Block.Type)_map[y,x,z], Block.Side.Side);
 		AddTriangles();
+		
+		_faces = _faces | (1 << 2);
 	}
 
 	private void AddSouthFace(int y, int x, int z)
@@ -241,6 +249,8 @@ public class TerrainChunk : MonoBehaviour
 		AddNormals(Vector3.back);
 		AddUv((Block.Type)_map[y,x,z], Block.Side.Side);
 		AddTriangles();
+		
+		_faces = _faces | (1 << 3);
 	}
 	
 	private void AddWestFace(int y, int x, int z)
@@ -255,6 +265,8 @@ public class TerrainChunk : MonoBehaviour
 		AddNormals(Vector3.left);
 		AddUv((Block.Type)_map[y,x,z], Block.Side.Side);
 		AddTriangles();
+		
+		_faces = _faces | (1 << 4);
 	}
 
 	private void AddEastFace(int y, int x, int z)
@@ -269,12 +281,15 @@ public class TerrainChunk : MonoBehaviour
 		AddNormals(Vector3.right);
 		AddUv((Block.Type)_map[y,x,z], Block.Side.Side);
 		AddTriangles();
+		
+		_faces = _faces | (1 << 5);
 	}
 
 	public void RecomputeMesh()
 	{
 		bool hasChunkBellow = null != _generator.GetNbrChunk(Vector3.down, this);
-				
+		_faces = 0;
+		
 		for (var y = 0; y < ChunkSize; y++) // layers
 		{
 			for (var x = 0; x < ChunkSize; x++)
@@ -303,6 +318,7 @@ public class TerrainChunk : MonoBehaviour
 		_meshFilter.mesh.triangles = _triangles.ToArray();
 		
 		_collider.sharedMesh = _meshFilter.mesh;
+		_collider.convex = _faces != 0 && (_faces & (_faces - 1)) == 0; // if there's only one side, mark mesh as convex
 		
 		_vertices.Clear();
 		_triangles.Clear();
