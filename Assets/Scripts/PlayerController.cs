@@ -149,6 +149,11 @@ public class PlayerController : MonoBehaviour
 	
 	void Update ()
 	{
+	    if (Input.GetKeyUp(KeyCode.Escape))
+		{
+			Application.Quit();
+		}
+	
 		Move();
 		Rotate();
 		BuildOptions();
