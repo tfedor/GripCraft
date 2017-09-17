@@ -3,6 +3,7 @@
 public class PlayerController : MonoBehaviour
 {
 	private const int BuildRange = 5;
+	private const int GenerateDistance = 4;
 	
 	private Vector3 _cursor;
 	private WorldGenerator _world;
@@ -163,7 +164,7 @@ public class PlayerController : MonoBehaviour
 		{
 			if (!chunk.Visited)
 			{
-				_world.CreateInDiameter(2, chunk);
+				_world.CreateInDiameter(GenerateDistance, chunk);
 				chunk.Visited = true;
 				
 				_world.RecomputeMeshes();
@@ -193,6 +194,14 @@ public class PlayerController : MonoBehaviour
 		{
 			CursorCube.GetComponent<MeshRenderer>().enabled = true;
 			_enableBuild = true;
+		}
+	}
+
+	void OnApplicationFocus(bool hasFocus)
+	{
+		if (hasFocus)
+		{
+			Cursor.lockState = CursorLockMode.Locked;
 		}
 	}
 }
