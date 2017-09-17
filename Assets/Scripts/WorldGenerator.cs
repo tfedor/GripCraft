@@ -262,7 +262,7 @@ public class WorldGenerator : MonoBehaviour
 		
 		if (type == Block.Type.Empty)
 		{
-			if (by == 0)                  { CreateChunk(chunkPos + Vector3.down * chunkSize, true); }
+			if (by <= 1)                  { CreateChunk(chunkPos + Vector3.down * chunkSize, true); }
 			else if (by == chunkSize - 1)
 			{
 				TerrainChunk upNbr = GetChunk(chunkPos + Vector3.up * chunkSize);
