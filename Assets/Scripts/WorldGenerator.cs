@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class WorldGenerator : MonoBehaviour
 {
-	public const int InitialWorldSize = 15;
+	public const int InitialWorldSize = 7;
 	public const int RenderDistance = 7 * 16;
 	public const int MaxHeight = 128;
 	
@@ -212,7 +212,7 @@ public class WorldGenerator : MonoBehaviour
 		return chunk.GetBlock(by, bx, bz);
 	}
 	
-	public void HitBlock(int y, int x, int z, TerrainChunk chunk)
+	public Block.Type HitBlock(int y, int x, int z, TerrainChunk chunk)
 	{
 		Vector3 blockPosition = new Vector3(x,y,z);
 		int by = y % TerrainChunk.ChunkSize;
@@ -228,18 +228,19 @@ public class WorldGenerator : MonoBehaviour
 		{
 			hits += _hitMap[blockPosition];
 		}
-		
-		int hitpoints = Block.Hitpoints(chunk.GetBlock(by, bx, bz));
+
+		Block.Type type = chunk.GetBlock(by, bx, bz);
+		int hitpoints = Block.Hitpoints(type);
 		
 		if (hits >= hitpoints)
 		{
 			_hitMap.Remove(blockPosition);
 			SetBlock(y, x, z, Block.Type.Empty);
+			return Block.Type.Empty;
 		}
-		else
-		{
-			_hitMap[blockPosition] = (short)hits;
-		}
+		
+		_hitMap[blockPosition] = (short)hits;
+		return type;
 	}
 	
 	public TerrainChunk SetBlock(int y, int x, int z, Block.Type type)

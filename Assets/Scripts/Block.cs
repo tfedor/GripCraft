@@ -42,4 +42,16 @@ public class Block
 		if (height <  80 - rand * 20) { return Type.Ground; }
 		return Type.Stone;
 	}
+
+	public static Color GetParticleColor(Type type)
+	{
+		switch(type)
+		{
+			case Type.Ground: return new Color32(0,128,0,255);
+			case Type.Sand:   return new Color32(255,216,0,255);
+			case Type.Stone:  return new Color32(56,56,56,255);
+			case Type.Gem:    return new Color32(106,0,124,255);
+		}
+		return Color.white;
+	}
 }

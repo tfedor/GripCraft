@@ -11,7 +11,7 @@ public class PlayerController : MonoBehaviour
 	private CharacterController _controller;
 	private readonly float _walkSpeed = 6;
 	private readonly float _runSpeed = 12;
-	private readonly float _jumpSpeed = 8;
+	private readonly float _jumpSpeed = 7;
 	private readonly float _gravity = 20f;
 	private readonly float _airControl = 0.5f;
 	private Vector3 _direction = Vector3.zero;
@@ -22,6 +22,9 @@ public class PlayerController : MonoBehaviour
 	private bool _buildMode = true;
 	private Block.Type _selectedType = Block.Type.Ground;
 
+	private float _lastClick = 0;
+	public const float ClickRate = 0.2f;
+	
 	//
 	private TerrainChunk _prevChunk = null;
 	private bool _didChangeChunk = true;
@@ -82,6 +85,8 @@ public class PlayerController : MonoBehaviour
 		{
 			_buildMode = !_buildMode;
 			_ui.SetMode(_buildMode);
+			
+			CursorCube.transform.localScale = _buildMode ? Vector3.one : Vector3.one * 1.001f;
 		}
 		if      (Input.GetKeyDown(KeyCode.Alpha1)) { _selectedType = (Block.Type)0; _ui.SelectType(_selectedType); }
 		else if (Input.GetKeyDown(KeyCode.Alpha2)) { _selectedType = (Block.Type)1; _ui.SelectType(_selectedType); }
@@ -96,7 +101,7 @@ public class PlayerController : MonoBehaviour
 		if (Physics.Raycast(ray, out hit, BuildRange))
 		{
 			TerrainChunk chunk = hit.transform.GetComponent<TerrainChunk>();
-
+			if (chunk == null) { return; }
 
 			//
 			CursorCube.SetActive(true);
@@ -106,14 +111,15 @@ public class PlayerController : MonoBehaviour
 			int z = Mathf.FloorToInt(cubePos.z);
 			
 			CursorCube.transform.position = new Vector3(x + 0.5f, y + 0.5f, z + 0.5f);
+			CursorCube.transform.rotation = Quaternion.LookRotation(hit.normal);
 			
 			//
-			if (Input.GetButtonDown("Fire1"))
+			if (Input.GetButton("Fire1") && Time.time - _lastClick > ClickRate)
 			{
 				if (_buildMode) {
 					if (_enableBuild) {
 						TerrainChunk affectedChunk = _world.SetBlock(y, x, z, _selectedType);
-						if (affectedChunk && affectedChunk != chunk)
+						if (affectedChunk != null && affectedChunk != chunk)
 						{
 							chunk.RecomputeMesh();
 						}			
@@ -121,9 +127,17 @@ public class PlayerController : MonoBehaviour
 				}
 				else
 				{
-					_world.HitBlock(y, x, z, chunk);
+					Block.Type type = _world.HitBlock(y, x, z, chunk);
+					if (type != Block.Type.Empty)
+					{
+						ParticleSystem ps = CursorCube.GetComponent<ParticleSystem>();
+						ParticleSystem.MainModule settings = ps.main;
+						settings.startColor = new ParticleSystem.MinMaxGradient( Block.GetParticleColor(type) );
+						ps.Emit(10);
+					}
 				}
-				
+
+				_lastClick = Time.time;
 			}
 		}
 		else
