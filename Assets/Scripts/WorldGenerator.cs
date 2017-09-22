@@ -1,5 +1,6 @@
-﻿using System.Collections.Generic;
-using System.Configuration;
+﻿using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 public class WorldGenerator : MonoBehaviour
@@ -7,6 +8,8 @@ public class WorldGenerator : MonoBehaviour
 	public const int InitialWorldSize = 7;
 	public const int RenderDistance = 7 * 16;
 	public const int MaxHeight = 128;
+
+	private const float RecomputeTimeLimit = 0.01f;
 	
 	public GameObject WorldChunkPrefab;
 
@@ -17,7 +20,7 @@ public class WorldGenerator : MonoBehaviour
 		= new Dictionary<Vector3, short>();
 
 	private readonly HashSet<TerrainChunk> _recompute = new HashSet<TerrainChunk>();
-
+	
 	private float[] _seedX;
 	private float[] _seedZ;
 	private float[] _scale;
@@ -30,7 +33,7 @@ public class WorldGenerator : MonoBehaviour
 	
 	void Start ()
 	{
-		Random.InitState((int)System.DateTime.Now.Ticks); 
+		Random.InitState((int)System.DateTime.Now.Ticks);
 
 		_scale = new[] {1/128f, 1/64f, 1/64f, 1/16f, 1/8f};
 		_power = new[] { 0.8f,     1f,  0.4f,  0.2f, 0.1f};
@@ -173,6 +176,22 @@ public class WorldGenerator : MonoBehaviour
 			chunk.RecomputeMesh();
 		}
 		_recompute.Clear();
+	}
+	public IEnumerator RecomputeMeshesCoroutine()
+	{
+		TerrainChunk[] chunks = _recompute.ToArray();
+		_recompute.Clear();
+
+		float st = Time.realtimeSinceStartup;
+		foreach (TerrainChunk chunk in chunks)
+		{
+			chunk.RecomputeMesh();
+			if (Time.realtimeSinceStartup - st > RecomputeTimeLimit)
+			{
+				yield return null;
+				st = Time.realtimeSinceStartup;
+			}
+		}
 	}
 	
 	// in world coordinates

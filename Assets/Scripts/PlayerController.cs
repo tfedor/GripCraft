@@ -172,7 +172,8 @@ public class PlayerController : MonoBehaviour
 				_world.CreateInDiameter(GenerateDistance, chunk);
 				chunk.Visited = true;
 				
-				_world.RecomputeMeshes();
+				//_world.RecomputeMeshes();
+				StartCoroutine(_world.RecomputeMeshesCoroutine());
 			}
 
 			_didChangeChunk = chunk != _prevChunk;

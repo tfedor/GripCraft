@@ -107,7 +107,4 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3442d2917cc9399428de4f6ae37ae918, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ChunkNorth: {fileID: 0}
-  ChunkSouth: {fileID: 0}
-  ChunkWest: {fileID: 0}
-  ChunkEast: {fileID: 0}
+  Visited: 0

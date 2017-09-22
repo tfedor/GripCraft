@@ -10,10 +10,10 @@ public class TerrainChunk : MonoBehaviour
 	public const float CubeHalfWidth = 0.5f;
 	
 	private MeshRenderer _meshRenderer;
-    private MeshFilter _meshFilter;
-	private MeshCollider _collider;
-	private Mesh _chunk;
-
+	private MeshFilter _meshFilter;
+	private MeshCollider _meshCollider;
+	private BoxCollider _boxCollider;
+	
 	private readonly short[,,] _map = new short[16,16,16];
 	
 	private readonly List<Vector3> _vertices = new List<Vector3>();
@@ -36,7 +36,7 @@ public class TerrainChunk : MonoBehaviour
     {
 	    _meshRenderer = GetComponent<MeshRenderer>();
 	    _meshFilter = GetComponent<MeshFilter>();
-	    _collider = GetComponent<MeshCollider>();
+	    _meshCollider = GetComponent<MeshCollider>();
 
 	    _meshFilter.mesh = new Mesh();
     }
@@ -93,10 +93,11 @@ public class TerrainChunk : MonoBehaviour
 		}
 		_meshRenderer.enabled = true;
 		
+		/**
+		Unneccesarily complex?
 		// more precise, in circle
-		//_meshRenderer.enabled = x*x + z*z < WorldGenerator.RenderDistance * WorldGenerator.RenderDistance;
-		
-		/*
+		_meshRenderer.enabled = x*x + z*z < WorldGenerator.RenderDistance * WorldGenerator.RenderDistance;
+
 		// view cone
 		float x = transform.position.x - Camera.main.transform.position.x;
 		float y = transform.position.z - Camera.main.transform.position.z;
@@ -138,23 +139,23 @@ public class TerrainChunk : MonoBehaviour
 		return (Block.Type)_map[y, x, z];
 	}
 
-	public Block.Type GetWorldBlock(int y, int x, int z)
+	private bool IsNbrBlockEmpty(int y, int x, int z, TerrainChunk nbr)
 	{
-		if (y < 0 || y >= ChunkSize
-		 || x < 0 || x >= ChunkSize
-		 || z < 0 || z >= ChunkSize)
+		if (nbr == null)
 		{
-			return _generator.GetBlock(_wy + y, _wx + x, _wz + z);
+			return _wy + y >= _generator.GetHeight(_wx + x, _wz + z);
 		}
 		
-		return GetBlock(y, x, z);
+		if (y < 0)          { return Block.Type.Empty == nbr.GetBlock(ChunkSize - 1, x, z); }
+		if (x < 0)          { return Block.Type.Empty == nbr.GetBlock(y, ChunkSize - 1, z); }
+		if (z < 0)          { return Block.Type.Empty == nbr.GetBlock(y, x, ChunkSize - 1); }
+		if (y >= ChunkSize) { return Block.Type.Empty == nbr.GetBlock(0, x, z); }
+		if (x >= ChunkSize) { return Block.Type.Empty == nbr.GetBlock(y, 0, z); }
+		if (z >= ChunkSize) { return Block.Type.Empty == nbr.GetBlock(y, x, 0); }
+		
+		return false;
 	}
 	
-	private bool IsEmpty(int y, int x, int z)
-	{
-		return _map[y, x, z] == (int)Block.Type.Empty;
-	}
-
 	private void AddTriangles()
 	{
 		_v += 4;
@@ -191,8 +192,6 @@ public class TerrainChunk : MonoBehaviour
 	
 	private void AddTopFace(int y, int x, int z)
 	{
-		if (GetWorldBlock(y + 1, x, z) != Block.Type.Empty) { return; }
-		
 		_vertices.Add(new Vector3(x,   y+1, z));
 		_vertices.Add(new Vector3(x,   y+1, z+1));
 		_vertices.Add(new Vector3(x+1, y+1, z+1));
@@ -207,8 +206,6 @@ public class TerrainChunk : MonoBehaviour
 	
 	private void AddBottomFace(int y, int x, int z)
 	{
-		if (GetWorldBlock(y - 1, x, z) != Block.Type.Empty) { return; }
-		
 		_vertices.Add(new Vector3(x+1, y, z));
 		_vertices.Add(new Vector3(x+1, y, z+1));
 		_vertices.Add(new Vector3(x,   y, z+1));
@@ -223,8 +220,6 @@ public class TerrainChunk : MonoBehaviour
 
 	private void AddNorthFace(int y, int x, int z)
 	{
-		if (GetWorldBlock(y, x, z + 1) != Block.Type.Empty) { return; }
-		
 		_vertices.Add(new Vector3(x+1, y,   z+1));
 		_vertices.Add(new Vector3(x+1, y+1, z+1));
 		_vertices.Add(new Vector3(x,   y+1, z+1));
@@ -239,8 +234,6 @@ public class TerrainChunk : MonoBehaviour
 
 	private void AddSouthFace(int y, int x, int z)
 	{
-		if (GetWorldBlock(y, x, z - 1) != Block.Type.Empty) { return; }
-		
 		_vertices.Add(new Vector3(x,   y,   z));
 		_vertices.Add(new Vector3(x,   y+1, z));
 		_vertices.Add(new Vector3(x+1, y+1, z));
@@ -255,8 +248,6 @@ public class TerrainChunk : MonoBehaviour
 	
 	private void AddWestFace(int y, int x, int z)
 	{
-		if (GetWorldBlock(y, x - 1, z) != Block.Type.Empty) { return; }
-		
 		_vertices.Add(new Vector3(x, y,   z+1));
 		_vertices.Add(new Vector3(x, y+1, z+1));
 		_vertices.Add(new Vector3(x, y+1, z));
@@ -271,8 +262,6 @@ public class TerrainChunk : MonoBehaviour
 
 	private void AddEastFace(int y, int x, int z)
 	{
-		if (GetWorldBlock(y, x + 1, z) != Block.Type.Empty) { return; }
-		
 		_vertices.Add(new Vector3(x+1, y,   z));
 		_vertices.Add(new Vector3(x+1, y+1, z));
 		_vertices.Add(new Vector3(x+1, y+1, z+1));
@@ -287,27 +276,73 @@ public class TerrainChunk : MonoBehaviour
 
 	public void RecomputeMesh()
 	{
-		bool hasChunkBellow = null != _generator.GetNbrChunk(Vector3.down, this);
+		TerrainChunk chunkBellow = _generator.GetNbrChunk(Vector3.down, this);
+		TerrainChunk chunkTop = _generator.GetNbrChunk(Vector3.up, this);
+		TerrainChunk chunkNorth = _generator.GetNbrChunk(Vector3.forward, this);
+		TerrainChunk chunkSouth = _generator.GetNbrChunk(Vector3.back, this);
+		TerrainChunk chunkEast = _generator.GetNbrChunk(Vector3.right, this);
+		TerrainChunk chunkWest  = _generator.GetNbrChunk(Vector3.left, this);
+		
 		_faces = 0;
 		
-		for (var y = 0; y < ChunkSize; y++) // layers
+		for (var x = 0; x < ChunkSize; x++)
+		{
+			for (var z = 0; z < ChunkSize; z++)
+			{
+				bool prevEmpty = chunkBellow != null && IsNbrBlockEmpty(0,x,z, chunkBellow);
+ 
+				for (var y = 0; y < ChunkSize; y++) // layers
+				{
+					bool currEmpty = (Block.Type)_map[y, x, z] == Block.Type.Empty;
+					if      ( prevEmpty && !currEmpty)          { AddBottomFace(y,x,z); }
+					else if (!prevEmpty &&  currEmpty && y > 0) { AddTopFace(y-1,x,z); }
+
+					prevEmpty = currEmpty;
+				}
+
+				if (!prevEmpty && IsNbrBlockEmpty(ChunkSize,x,z, chunkTop))
+				{
+					AddTopFace(ChunkSize-1,x,z);
+				}
+			}
+		}
+		
+		for (var y = 0; y < ChunkSize; y++)
 		{
 			for (var x = 0; x < ChunkSize; x++)
 			{
+				bool prevEmpty = IsNbrBlockEmpty(y,x,-1, chunkSouth);
+				
 				for (var z = 0; z < ChunkSize; z++)
 				{
-					if (IsEmpty(y, x, z)) { continue; }
-
-					if (y != 0 || hasChunkBellow)
-					{
-						AddBottomFace(y,x,z);
-					}
-					AddTopFace(y,x,z);
-					AddNorthFace(y,x,z);
-					AddSouthFace(y,x,z);
-					AddWestFace(y,x,z);
-					AddEastFace(y,x,z);		
+					bool currEmpty = (Block.Type)_map[y, x, z] == Block.Type.Empty;
+					if      ( prevEmpty && !currEmpty)          { AddSouthFace(y,x,z); }
+					else if (!prevEmpty &&  currEmpty && z > 0) { AddNorthFace(y,x,z-1); }
+					prevEmpty = currEmpty;
 				}
+				
+				if (!prevEmpty && IsNbrBlockEmpty(y,x,ChunkSize, chunkNorth))
+				{
+					AddNorthFace(y,x,ChunkSize-1);
+				}
+			}
+			
+			for (var z = 0; z < ChunkSize; z++)
+			{
+				bool prevEmpty = IsNbrBlockEmpty(y, -1, z, chunkWest);
+				
+				for (var x = 0; x < ChunkSize; x++)
+				{
+					bool currEmpty = (Block.Type)_map[y, x, z] == Block.Type.Empty;
+					if       (prevEmpty && !currEmpty)          { AddWestFace(y,x,z); }
+					else if (!prevEmpty &&  currEmpty && x > 0) { AddEastFace(y,x-1,z); }
+					prevEmpty = currEmpty;
+				}
+				
+				if (!prevEmpty && IsNbrBlockEmpty(y, ChunkSize, z, chunkEast))
+				{
+					AddEastFace(y, ChunkSize-1, z);
+				}	
 			}
 		}
 		
@@ -317,8 +352,8 @@ public class TerrainChunk : MonoBehaviour
 		_meshFilter.mesh.uv = _uv.ToArray();
 		_meshFilter.mesh.triangles = _triangles.ToArray();
 		
-		_collider.sharedMesh = _meshFilter.mesh;
-		_collider.convex = _faces != 0 && (_faces & (_faces - 1)) == 0; // if there's only one side, mark mesh as convex
+		_meshCollider.sharedMesh = _meshFilter.mesh;
+		_meshCollider.convex = _faces != 0 && (_faces & (_faces - 1)) == 0; // if there's only one side, mark mesh as convex
 		
 		_vertices.Clear();
 		_triangles.Clear();
