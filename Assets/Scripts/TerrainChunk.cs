@@ -179,10 +179,10 @@ public class TerrainChunk : MonoBehaviour
 
 	private void AddUv(Block.Type type, Block.Side side)
 	{
-		float x0 = Mathf.Clamp01((int) side      * Block.TextureSize);
-		float x1 = Mathf.Clamp01((int)(side + 1) * Block.TextureSize);
-		float y0 = Mathf.Clamp01((int) type      * Block.TextureSize);
-		float y1 = Mathf.Clamp01((int)(type + 1) * Block.TextureSize);
+		float x0 = Mathf.Clamp01((int) side      * Block.TextureSize + Block.TextureOffset);
+		float x1 = Mathf.Clamp01((int)(side + 1) * Block.TextureSize - Block.TextureOffset);
+		float y0 = Mathf.Clamp01((int) type      * Block.TextureSize + Block.TextureOffset);
+		float y1 = Mathf.Clamp01((int)(type + 1) * Block.TextureSize - Block.TextureOffset);
 		
 		_uv.Add(new Vector2(x0, y0));
 		_uv.Add(new Vector2(x0, y1));
