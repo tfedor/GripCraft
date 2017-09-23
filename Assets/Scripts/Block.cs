@@ -33,13 +33,18 @@ public class Block
 		return 0;
 	}
 
-	public static Type GetType(int height)
+	public static Type GetType(int blockHeight, int height)
 	{
 		float rand = Random.value;
-		if (height < -20 - rand * 30) { return Type.Gem; }
-		if (height <   5 - rand *  3) { return Type.Stone; }
-		if (height <  20 - rand *  6) { return Type.Sand; }
-		if (height <  80 - rand * 20) { return Type.Ground; }
+		if (blockHeight < -20 - rand * 30) { return Type.Gem; }
+		if (blockHeight <   5 - rand *  3) { return Type.Stone; }
+
+		if (height < 25)
+		{
+			if (blockHeight < 20 - rand * 6) { return Type.Sand; }
+		}
+		
+		if (blockHeight < 80 - rand * 20) { return Type.Ground; }
 		return Type.Stone;
 	}
 

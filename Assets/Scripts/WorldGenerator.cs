@@ -69,7 +69,6 @@ public class WorldGenerator : MonoBehaviour
 
 	public int GetHeight(int x, int z)
 	{
-
 		float noise = 0;
 		
 		int levels = _scale.Length;
@@ -128,20 +127,6 @@ public class WorldGenerator : MonoBehaviour
 		SaveChunk(chunk);
 
 		MarkToRecompute(chunk);
-		
-		TerrainChunk nbr;
-		nbr = GetNbrChunk(Vector3.forward, chunk);
-		if (nbr) { MarkToRecompute(nbr); }
-		
-		nbr = GetNbrChunk(Vector3.back, chunk);
-		if (nbr) { MarkToRecompute(nbr); }
-		
-		nbr = GetNbrChunk(Vector3.left, chunk);
-		if (nbr) { MarkToRecompute(nbr); }
-		
-		nbr = GetNbrChunk(Vector3.right, chunk);
-		if (nbr) { MarkToRecompute(nbr); }
-		
 		return chunk;
 	}
 

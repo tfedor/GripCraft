@@ -61,7 +61,7 @@ public class TerrainChunk : MonoBehaviour
 				for (var y = 0; y < ChunkSize; y++)
 				{
 					_map[y, x, z] = (short) (_wy + y < height
-						? Block.GetType(_wy + y)
+						? Block.GetType(_wy + y, height)
 						: Block.Type.Empty
 					);
 				}
