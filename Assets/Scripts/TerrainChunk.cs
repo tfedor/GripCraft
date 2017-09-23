@@ -1,9 +1,13 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Security.Cryptography.X509Certificates;
+using UnityEditorInternal;
 using UnityEngine;
 
 public class TerrainChunk : MonoBehaviour
 {
 	public const int ChunkSize = 16;
+	public const byte MaxLight = 16;
 	
 	private WorldGenerator _generator;
 	
@@ -15,13 +19,18 @@ public class TerrainChunk : MonoBehaviour
 	private BoxCollider _boxCollider;
 	
 	private readonly short[,,] _map = new short[16,16,16];
+	private readonly short[,,] _lightmap = new short[16,16,16];
 	
 	private readonly List<Vector3> _vertices = new List<Vector3>();
 	private readonly List<Vector3> _normals = new List<Vector3>();
 	private readonly List<Vector2> _uv = new List<Vector2>();
+	private readonly List<Vector2> _uv1 = new List<Vector2>();
 	private readonly List<int> _triangles = new List<int>();
 	private int _v; // vertex index
 
+	private readonly Queue<Vector3> _lightAddQ = new Queue<Vector3>();
+	private readonly Queue<Vector3> _lightDelQ = new Queue<Vector3>();
+	
 	// world offset coordinates
 	private int _wy;
 	private int _wx;
@@ -60,10 +69,16 @@ public class TerrainChunk : MonoBehaviour
 				
 				for (var y = 0; y < ChunkSize; y++)
 				{
-					_map[y, x, z] = (short) (_wy + y < height
-						? Block.GetType(_wy + y, height)
-						: Block.Type.Empty
-					);
+					if (_wy + y < height)
+					{
+						_map[y, x, z] = (short) Block.GetType(_wy + y, height);
+						_lightmap[y, x, z] = 0;
+					}
+					else
+					{
+						_map[y, x, z] = (short) Block.Type.Empty;
+						_lightmap[y, x, z] = MaxLight;
+					}
 				}
 			}
 		}
@@ -131,7 +146,29 @@ public class TerrainChunk : MonoBehaviour
 	
 	public void SetBlock(int y, int x, int z, Block.Type type)
 	{
-		_map[y, x, z] = (short)type;
+		if (type == Block.Type.Empty)
+		{
+			_lightmap[y, x, z] = 0;
+			_map[y, x, z] = (short)type;
+			
+			_lightAddQ.Enqueue(new Vector3(x-1,y,z));
+			_lightAddQ.Enqueue(new Vector3(x+1,y,z));
+			_lightAddQ.Enqueue(new Vector3(x,y-1,z));
+			_lightAddQ.Enqueue(new Vector3(x,y+1,z));
+			_lightAddQ.Enqueue(new Vector3(x,y,z-1));
+			_lightAddQ.Enqueue(new Vector3(x,y,z+1));
+			
+			ComputeLights();
+		}
+		else
+		{
+			_lightDelQ.Enqueue(new Vector3(x,y,z));
+			ComputeRemoveLights();
+			
+			_lightmap[y, x, z] = 0;
+			_map[y, x, z] = (short)type;
+			ComputeLights();			
+		}
 	}
 
 	public Block.Type GetBlock(int y, int x, int z)
@@ -154,6 +191,40 @@ public class TerrainChunk : MonoBehaviour
 		if (z >= ChunkSize) { return Block.Type.Empty == nbr.GetBlock(y, x, 0); }
 		
 		return false;
+	}
+	
+	public void SetLightLevel(int x, int y, int z, short level)
+	{
+		_lightmap[y, x, z] = level;
+	}
+	public short GetLightLevel(int x, int y, int z)
+	{
+		return _lightmap[y, x, z];
+	}
+
+	private short GetNbrLight(int x, int y, int z, TerrainChunk nbr)
+	{	
+		if (x == -1)        { return nbr == null? MaxLight : nbr.GetLightLevel(ChunkSize - 1, y, z); }
+		if (y == -1)        { return nbr == null? MaxLight : nbr.GetLightLevel(x, ChunkSize - 1, z); }
+		if (z == -1)        { return nbr == null? MaxLight : nbr.GetLightLevel(x, y, ChunkSize - 1); }
+		if (x == ChunkSize) { return nbr == null? MaxLight : nbr.GetLightLevel(0, y, z); }
+		if (y == ChunkSize) { return nbr == null? MaxLight : nbr.GetLightLevel(x, 0, z); }
+		if (z == ChunkSize) { return nbr == null? MaxLight : nbr.GetLightLevel(x, y, 0); }
+		return _lightmap[y,x,z];
+	}
+
+	private void SetNbrLight(int x, int y, int z, short level, TerrainChunk nbr)
+	{
+		if      (x == -1)        { if (nbr != null) nbr.SetLightLevel(ChunkSize - 1, y, z, level); }
+		else if (y == -1)        { if (nbr != null) nbr.SetLightLevel(x, ChunkSize - 1, z, level); }
+		else if (z == -1)        { if (nbr != null) nbr.SetLightLevel(x, y, ChunkSize - 1, level); }
+		else if (x == ChunkSize) { if (nbr != null) nbr.SetLightLevel(0, y, z, level); }
+		else if (y == ChunkSize) { if (nbr != null) nbr.SetLightLevel(x, 0, z, level); }
+		else if (z == ChunkSize) { if (nbr != null) nbr.SetLightLevel(x, y, 0, level); }
+		else
+		{
+			_lightmap[y,x,z] = level;
+		}
 	}
 	
 	private void AddTriangles()
@@ -190,7 +261,16 @@ public class TerrainChunk : MonoBehaviour
 		_uv.Add(new Vector2(x1, y0));
 	}
 	
-	private void AddTopFace(int y, int x, int z)
+	private void AddLight(float lightLevel)
+	{
+		float level = Mathf.Pow(lightLevel / MaxLight, 1.4f); 
+		_uv1.Add(new Vector2(level, 0));
+		_uv1.Add(new Vector2(level, 0));
+		_uv1.Add(new Vector2(level, 0));
+		_uv1.Add(new Vector2(level, 0));
+	}
+	
+	private void AddTopFace(int y, int x, int z, short lightLevel)
 	{
 		_vertices.Add(new Vector3(x,   y+1, z));
 		_vertices.Add(new Vector3(x,   y+1, z+1));
@@ -199,12 +279,13 @@ public class TerrainChunk : MonoBehaviour
 		
 		AddNormals(Vector3.up);
 		AddUv((Block.Type)_map[y,x,z], Block.Side.Top);
+		AddLight(lightLevel);
 		AddTriangles();
 
 		_faces = _faces | 1;
 	}
 	
-	private void AddBottomFace(int y, int x, int z)
+	private void AddBottomFace(int y, int x, int z, short lightLevel)
 	{
 		_vertices.Add(new Vector3(x+1, y, z));
 		_vertices.Add(new Vector3(x+1, y, z+1));
@@ -213,12 +294,13 @@ public class TerrainChunk : MonoBehaviour
 		
 		AddNormals(Vector3.down);		
 		AddUv((Block.Type)_map[y,x,z], Block.Side.Bottom);
+		AddLight(lightLevel);
 		AddTriangles();
 		
 		_faces = _faces | (1 << 1);
 	}
 
-	private void AddNorthFace(int y, int x, int z)
+	private void AddNorthFace(int y, int x, int z, short lightLevel)
 	{
 		_vertices.Add(new Vector3(x+1, y,   z+1));
 		_vertices.Add(new Vector3(x+1, y+1, z+1));
@@ -227,12 +309,13 @@ public class TerrainChunk : MonoBehaviour
 		
 		AddNormals(Vector3.forward);
 		AddUv((Block.Type)_map[y,x,z], Block.Side.Side);
+		AddLight(lightLevel);
 		AddTriangles();
 		
 		_faces = _faces | (1 << 2);
 	}
 
-	private void AddSouthFace(int y, int x, int z)
+	private void AddSouthFace(int y, int x, int z, short lightLevel)
 	{
 		_vertices.Add(new Vector3(x,   y,   z));
 		_vertices.Add(new Vector3(x,   y+1, z));
@@ -241,12 +324,13 @@ public class TerrainChunk : MonoBehaviour
 		
 		AddNormals(Vector3.back);
 		AddUv((Block.Type)_map[y,x,z], Block.Side.Side);
+		AddLight(lightLevel);
 		AddTriangles();
 		
 		_faces = _faces | (1 << 3);
 	}
 	
-	private void AddWestFace(int y, int x, int z)
+	private void AddWestFace(int y, int x, int z, short lightLevel)
 	{
 		_vertices.Add(new Vector3(x, y,   z+1));
 		_vertices.Add(new Vector3(x, y+1, z+1));
@@ -255,12 +339,13 @@ public class TerrainChunk : MonoBehaviour
 		
 		AddNormals(Vector3.left);
 		AddUv((Block.Type)_map[y,x,z], Block.Side.Side);
+		AddLight(lightLevel);
 		AddTriangles();
 		
 		_faces = _faces | (1 << 4);
 	}
 
-	private void AddEastFace(int y, int x, int z)
+	private void AddEastFace(int y, int x, int z, short lightLevel)
 	{
 		_vertices.Add(new Vector3(x+1, y,   z));
 		_vertices.Add(new Vector3(x+1, y+1, z));
@@ -269,6 +354,7 @@ public class TerrainChunk : MonoBehaviour
 		
 		AddNormals(Vector3.right);
 		AddUv((Block.Type)_map[y,x,z], Block.Side.Side);
+		AddLight(lightLevel);
 		AddTriangles();
 		
 		_faces = _faces | (1 << 5);
@@ -289,20 +375,23 @@ public class TerrainChunk : MonoBehaviour
 		{
 			for (var z = 0; z < ChunkSize; z++)
 			{
-				bool prevEmpty = chunkBellow != null && IsNbrBlockEmpty(0,x,z, chunkBellow);
+				bool prevEmpty = chunkBellow != null && IsNbrBlockEmpty(-1,x,z, chunkBellow);
+				short prevLight = GetNbrLight(x, -1, z, chunkBellow);
  
 				for (var y = 0; y < ChunkSize; y++) // layers
 				{
 					bool currEmpty = (Block.Type)_map[y, x, z] == Block.Type.Empty;
-					if      ( prevEmpty && !currEmpty)          { AddBottomFace(y,x,z); }
-					else if (!prevEmpty &&  currEmpty && y > 0) { AddTopFace(y-1,x,z); }
+					short currLight = _lightmap[y, x, z];
+					if      ( prevEmpty && !currEmpty)          { AddBottomFace(y,x,z,prevLight); }
+					else if (!prevEmpty &&  currEmpty && y > 0) { AddTopFace(y-1,x,z,currLight); }
 
+					prevLight = currLight;
 					prevEmpty = currEmpty;
 				}
 
 				if (!prevEmpty && IsNbrBlockEmpty(ChunkSize,x,z, chunkTop))
 				{
-					AddTopFace(ChunkSize-1,x,z);
+					AddTopFace(ChunkSize-1,x,z, GetNbrLight(x,ChunkSize, z, chunkTop));
 				}
 			}
 		}
@@ -312,36 +401,44 @@ public class TerrainChunk : MonoBehaviour
 			for (var x = 0; x < ChunkSize; x++)
 			{
 				bool prevEmpty = IsNbrBlockEmpty(y,x,-1, chunkSouth);
-				
+				short prevLight = GetNbrLight(x,y, -1, chunkSouth);
+
 				for (var z = 0; z < ChunkSize; z++)
 				{
 					bool currEmpty = (Block.Type)_map[y, x, z] == Block.Type.Empty;
-					if      ( prevEmpty && !currEmpty)          { AddSouthFace(y,x,z); }
-					else if (!prevEmpty &&  currEmpty && z > 0) { AddNorthFace(y,x,z-1); }
+					short currLight = _lightmap[y, x, z];
+					if      ( prevEmpty && !currEmpty)          { AddSouthFace(y,x,z,prevLight); }
+					else if (!prevEmpty &&  currEmpty && z > 0) { AddNorthFace(y,x,z-1,currLight); }
+					
+					prevLight = currLight;
 					prevEmpty = currEmpty;
 				}
 				
 				if (!prevEmpty && IsNbrBlockEmpty(y,x,ChunkSize, chunkNorth))
 				{
-					AddNorthFace(y,x,ChunkSize-1);
+					AddNorthFace(y, x, ChunkSize-1, GetNbrLight(x,y, ChunkSize, chunkNorth));
 				}
 			}
 			
 			for (var z = 0; z < ChunkSize; z++)
 			{
 				bool prevEmpty = IsNbrBlockEmpty(y, -1, z, chunkWest);
-				
+				short prevLight = GetNbrLight(-1, y, z, chunkWest);
+ 
 				for (var x = 0; x < ChunkSize; x++)
 				{
 					bool currEmpty = (Block.Type)_map[y, x, z] == Block.Type.Empty;
-					if       (prevEmpty && !currEmpty)          { AddWestFace(y,x,z); }
-					else if (!prevEmpty &&  currEmpty && x > 0) { AddEastFace(y,x-1,z); }
+					short currLight = _lightmap[y, x, z];
+					if       (prevEmpty && !currEmpty)          { AddWestFace(y,x,z,prevLight); }
+					else if (!prevEmpty &&  currEmpty && x > 0) { AddEastFace(y,x-1,z,currLight); }
+					
+					prevLight = currLight;
 					prevEmpty = currEmpty;
 				}
 				
 				if (!prevEmpty && IsNbrBlockEmpty(y, ChunkSize, z, chunkEast))
 				{
-					AddEastFace(y, ChunkSize-1, z);
+					AddEastFace(y, ChunkSize-1, z, GetNbrLight(ChunkSize, y, z, chunkEast));
 				}	
 			}
 		}
@@ -350,6 +447,7 @@ public class TerrainChunk : MonoBehaviour
 		_meshFilter.mesh.vertices = _vertices.ToArray();
 		_meshFilter.mesh.normals = _normals.ToArray();
 		_meshFilter.mesh.uv = _uv.ToArray();
+		_meshFilter.mesh.uv2 = _uv1.ToArray();
 		_meshFilter.mesh.triangles = _triangles.ToArray();
 		
 		_meshCollider.sharedMesh = _meshFilter.mesh;
@@ -359,6 +457,102 @@ public class TerrainChunk : MonoBehaviour
 		_triangles.Clear();
 		_normals.Clear();
 		_uv.Clear();
+		_uv1.Clear();
 		_v = 0;
 	}
+
+	void ComputeLights()
+	{
+		TerrainChunk chunkBellow = _generator.GetNbrChunk(Vector3.down, this);
+		TerrainChunk chunkTop = _generator.GetNbrChunk(Vector3.up, this);
+		TerrainChunk chunkNorth = _generator.GetNbrChunk(Vector3.forward, this);
+		TerrainChunk chunkSouth = _generator.GetNbrChunk(Vector3.back, this);
+		TerrainChunk chunkEast = _generator.GetNbrChunk(Vector3.right, this);
+		TerrainChunk chunkWest  = _generator.GetNbrChunk(Vector3.left, this);
+		
+		while (_lightAddQ.Count > 0)
+		{
+			Vector3 v = _lightAddQ.Dequeue();
+
+			int x = (int)v.x;
+			int y = (int)v.y;
+			int z = (int)v.z;
+			
+			if (x < 0 || y < 0 || z < 0 || x > 15 || y > 15 || z > 15) { continue; } // FIXME 
+
+			if (Block.Type.Empty != (Block.Type)_map[y, x, z]) { continue; }
+			
+			short nbrLight;
+			short newLight = (short)(_lightmap[y, x, z] - 1);
+			
+			nbrLight = GetNbrLight(x - 1, y, z, chunkWest);
+			if (nbrLight < newLight) { _lightAddQ.Enqueue(new Vector3(x - 1, y, z)); SetNbrLight(x - 1, y, z, newLight, chunkWest); } 
+			
+			nbrLight = GetNbrLight(x + 1, y, z, chunkEast);
+			if (nbrLight < newLight) { _lightAddQ.Enqueue(new Vector3(x + 1, y, z)); SetNbrLight(x + 1, y, z, newLight, chunkEast); }
+			
+			nbrLight = GetNbrLight(x, y, z - 1, chunkNorth);
+			if (nbrLight < newLight) { _lightAddQ.Enqueue(new Vector3(x, y, z - 1)); SetNbrLight(x, y, z - 1, newLight, chunkNorth); }
+			
+			nbrLight = GetNbrLight(x, y, z + 1, chunkSouth);
+			if (nbrLight < newLight) { _lightAddQ.Enqueue(new Vector3(x, y, z + 1)); SetNbrLight(x, y, z + 1, newLight, chunkSouth); }
+			
+			nbrLight = GetNbrLight(x, y + 1, z, chunkTop);
+			if (nbrLight < newLight) { _lightAddQ.Enqueue(new Vector3(x, y + 1, z)); SetNbrLight(x, y + 1, z, newLight, chunkTop); }
+
+			if (_lightmap[y, x, z] == MaxLight) { newLight = MaxLight; }
+			nbrLight = GetNbrLight(x, y - 1, z, chunkBellow);
+			if (nbrLight < newLight) { _lightAddQ.Enqueue(new Vector3(x, y - 1, z)); SetNbrLight(x, y - 1, z, newLight, chunkBellow); }
+		}
+	}
+
+	void ComputeRemoveLights()
+	{
+		TerrainChunk chunkBellow = _generator.GetNbrChunk(Vector3.down, this);
+		TerrainChunk chunkTop = _generator.GetNbrChunk(Vector3.up, this);
+		TerrainChunk chunkNorth = _generator.GetNbrChunk(Vector3.forward, this);
+		TerrainChunk chunkSouth = _generator.GetNbrChunk(Vector3.back, this);
+		TerrainChunk chunkEast = _generator.GetNbrChunk(Vector3.right, this);
+		TerrainChunk chunkWest  = _generator.GetNbrChunk(Vector3.left, this);
+		
+		while (_lightDelQ.Count > 0)
+		{
+			Vector3 v = _lightDelQ.Dequeue();
+			int x = (int)v.x;
+			int y = (int)v.y;
+			int z = (int)v.z;
+		
+			if (x < 0 || y < 0 || z < 0 || x > 15 || y > 15 || z > 15) { continue; } // TODO 
+			
+			if (_lightmap[y, x, z] == 0) { continue; }
+
+			short nbrLight;
+			short curLight = _lightmap[y, x, z];
+			
+			nbrLight = GetNbrLight(x - 1, y, z, chunkWest);
+			if (nbrLight < curLight) { _lightDelQ.Enqueue(new Vector3(x - 1, y, z)); _lightmap[y, x, z] = 0;  }
+			else                     { _lightAddQ.Enqueue(new Vector3(x - 1, y, z)); } 
+			
+			nbrLight = GetNbrLight(x + 1, y, z, chunkEast);
+			if (nbrLight < curLight) { _lightDelQ.Enqueue(new Vector3(x + 1, y, z)); _lightmap[y, x, z] = 0;  }
+			else                     { _lightAddQ.Enqueue(new Vector3(x + 1, y, z)); }
+			nbrLight = GetNbrLight(x, y, z - 1, chunkNorth);
+			if (nbrLight < curLight) { _lightDelQ.Enqueue(new Vector3(x, y, z - 1)); _lightmap[y, x, z] = 0;  }
+			else                     { _lightAddQ.Enqueue(new Vector3(x, y, z - 1)); }
+			
+			nbrLight = GetNbrLight(x, y, z + 1, chunkSouth);
+			if (nbrLight < curLight) { _lightDelQ.Enqueue(new Vector3(x, y, z + 1)); _lightmap[y, x, z] = 0;  }
+			else                     { _lightAddQ.Enqueue(new Vector3(x, y, z + 1)); }
+			
+			nbrLight = GetNbrLight(x, y + 1, z, chunkTop);
+			if (nbrLight < curLight) { _lightDelQ.Enqueue(new Vector3(x, y + 1, z)); _lightmap[y, x, z] = 0;  }
+			else                     { _lightAddQ.Enqueue(new Vector3(x, y + 1, z)); }
+			
+			nbrLight = GetNbrLight(x, y - 1, z, chunkBellow);
+			if (nbrLight < curLight || (curLight == MaxLight && nbrLight == MaxLight))
+			                         { _lightDelQ.Enqueue(new Vector3(x, y - 1, z)); _lightmap[y, x, z] = 0;  }
+			else                     { _lightAddQ.Enqueue(new Vector3(x, y - 1, z)); }
+		}
+	}
+
 }

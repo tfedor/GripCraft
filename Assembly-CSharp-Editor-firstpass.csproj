@@ -54,6 +54,7 @@
   <ItemGroup>
     <Compile Include="Assets\Plugins\Editor\JetBrains\Unity3DRider.cs" />
     <None Include="Assets\Fonts\Read Me.txt" />
+    <None Include="Assets\Materials\CustomShader.shader" />
     <None Include="Assets\Fonts\License.txt" />
     <Reference Include="UnityEditor.Advertisements">
       <HintPath>C:/Programs/Unity/Editor/Data/UnityExtensions/Unity/Advertisements/Editor/UnityEditor.Advertisements.dll</HintPath>
