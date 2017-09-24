@@ -5,6 +5,8 @@ public class Block
 {
 	public const float TextureSize = 0.25f;
 	public const float TextureOffset = 0.5f * (1 / 64f); // Size of Texture in pixels
+
+	public const short GemLight = 14;
 	
 	public enum Side
 	{

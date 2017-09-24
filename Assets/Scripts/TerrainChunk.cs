@@ -1,13 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Security.Cryptography.X509Certificates;
-using UnityEditorInternal;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 public class TerrainChunk : MonoBehaviour
 {
 	public const int ChunkSize = 16;
-	public const byte MaxLight = 16;
+	public const byte MaxLight = 15;
 	
 	private WorldGenerator _generator;
 	
@@ -28,9 +25,6 @@ public class TerrainChunk : MonoBehaviour
 	private readonly List<int> _triangles = new List<int>();
 	private int _v; // vertex index
 
-	private readonly Queue<Vector3> _lightAddQ = new Queue<Vector3>();
-	private readonly Queue<Vector3> _lightDelQ = new Queue<Vector3>();
-	
 	// world offset coordinates
 	private int _wy;
 	private int _wx;
@@ -146,29 +140,7 @@ public class TerrainChunk : MonoBehaviour
 	
 	public void SetBlock(int y, int x, int z, Block.Type type)
 	{
-		if (type == Block.Type.Empty)
-		{
-			_lightmap[y, x, z] = 0;
-			_map[y, x, z] = (short)type;
-			
-			_lightAddQ.Enqueue(new Vector3(x-1,y,z));
-			_lightAddQ.Enqueue(new Vector3(x+1,y,z));
-			_lightAddQ.Enqueue(new Vector3(x,y-1,z));
-			_lightAddQ.Enqueue(new Vector3(x,y+1,z));
-			_lightAddQ.Enqueue(new Vector3(x,y,z-1));
-			_lightAddQ.Enqueue(new Vector3(x,y,z+1));
-			
-			ComputeLights();
-		}
-		else
-		{
-			_lightDelQ.Enqueue(new Vector3(x,y,z));
-			ComputeRemoveLights();
-			
-			_lightmap[y, x, z] = 0;
-			_map[y, x, z] = (short)type;
-			ComputeLights();			
-		}
+		_map[y, x, z] = (short)type;
 	}
 
 	public Block.Type GetBlock(int y, int x, int z)
@@ -204,27 +176,13 @@ public class TerrainChunk : MonoBehaviour
 
 	private short GetNbrLight(int x, int y, int z, TerrainChunk nbr)
 	{	
-		if (x == -1)        { return nbr == null? MaxLight : nbr.GetLightLevel(ChunkSize - 1, y, z); }
-		if (y == -1)        { return nbr == null? MaxLight : nbr.GetLightLevel(x, ChunkSize - 1, z); }
-		if (z == -1)        { return nbr == null? MaxLight : nbr.GetLightLevel(x, y, ChunkSize - 1); }
-		if (x == ChunkSize) { return nbr == null? MaxLight : nbr.GetLightLevel(0, y, z); }
-		if (y == ChunkSize) { return nbr == null? MaxLight : nbr.GetLightLevel(x, 0, z); }
-		if (z == ChunkSize) { return nbr == null? MaxLight : nbr.GetLightLevel(x, y, 0); }
+		if (x < 0)          { return nbr == null ? MaxLight : nbr.GetLightLevel(ChunkSize - 1, y, z); }
+		if (y < 0)          { return nbr == null ? MaxLight : nbr.GetLightLevel(x, ChunkSize - 1, z); }
+		if (z < 0)          { return nbr == null ? MaxLight : nbr.GetLightLevel(x, y, ChunkSize - 1); }
+		if (x >= ChunkSize) { return nbr == null ? MaxLight : nbr.GetLightLevel(0, y, z); }
+		if (y >= ChunkSize) { return nbr == null ? MaxLight : nbr.GetLightLevel(x, 0, z); }
+		if (z >= ChunkSize) { return nbr == null ? MaxLight : nbr.GetLightLevel(x, y, 0); }
 		return _lightmap[y,x,z];
-	}
-
-	private void SetNbrLight(int x, int y, int z, short level, TerrainChunk nbr)
-	{
-		if      (x == -1)        { if (nbr != null) nbr.SetLightLevel(ChunkSize - 1, y, z, level); }
-		else if (y == -1)        { if (nbr != null) nbr.SetLightLevel(x, ChunkSize - 1, z, level); }
-		else if (z == -1)        { if (nbr != null) nbr.SetLightLevel(x, y, ChunkSize - 1, level); }
-		else if (x == ChunkSize) { if (nbr != null) nbr.SetLightLevel(0, y, z, level); }
-		else if (y == ChunkSize) { if (nbr != null) nbr.SetLightLevel(x, 0, z, level); }
-		else if (z == ChunkSize) { if (nbr != null) nbr.SetLightLevel(x, y, 0, level); }
-		else
-		{
-			_lightmap[y,x,z] = level;
-		}
 	}
 	
 	private void AddTriangles()
@@ -460,99 +418,4 @@ public class TerrainChunk : MonoBehaviour
 		_uv1.Clear();
 		_v = 0;
 	}
-
-	void ComputeLights()
-	{
-		TerrainChunk chunkBellow = _generator.GetNbrChunk(Vector3.down, this);
-		TerrainChunk chunkTop = _generator.GetNbrChunk(Vector3.up, this);
-		TerrainChunk chunkNorth = _generator.GetNbrChunk(Vector3.forward, this);
-		TerrainChunk chunkSouth = _generator.GetNbrChunk(Vector3.back, this);
-		TerrainChunk chunkEast = _generator.GetNbrChunk(Vector3.right, this);
-		TerrainChunk chunkWest  = _generator.GetNbrChunk(Vector3.left, this);
-		
-		while (_lightAddQ.Count > 0)
-		{
-			Vector3 v = _lightAddQ.Dequeue();
-
-			int x = (int)v.x;
-			int y = (int)v.y;
-			int z = (int)v.z;
-			
-			if (x < 0 || y < 0 || z < 0 || x > 15 || y > 15 || z > 15) { continue; } // FIXME 
-
-			if (Block.Type.Empty != (Block.Type)_map[y, x, z]) { continue; }
-			
-			short nbrLight;
-			short newLight = (short)(_lightmap[y, x, z] - 1);
-			
-			nbrLight = GetNbrLight(x - 1, y, z, chunkWest);
-			if (nbrLight < newLight) { _lightAddQ.Enqueue(new Vector3(x - 1, y, z)); SetNbrLight(x - 1, y, z, newLight, chunkWest); } 
-			
-			nbrLight = GetNbrLight(x + 1, y, z, chunkEast);
-			if (nbrLight < newLight) { _lightAddQ.Enqueue(new Vector3(x + 1, y, z)); SetNbrLight(x + 1, y, z, newLight, chunkEast); }
-			
-			nbrLight = GetNbrLight(x, y, z - 1, chunkNorth);
-			if (nbrLight < newLight) { _lightAddQ.Enqueue(new Vector3(x, y, z - 1)); SetNbrLight(x, y, z - 1, newLight, chunkNorth); }
-			
-			nbrLight = GetNbrLight(x, y, z + 1, chunkSouth);
-			if (nbrLight < newLight) { _lightAddQ.Enqueue(new Vector3(x, y, z + 1)); SetNbrLight(x, y, z + 1, newLight, chunkSouth); }
-			
-			nbrLight = GetNbrLight(x, y + 1, z, chunkTop);
-			if (nbrLight < newLight) { _lightAddQ.Enqueue(new Vector3(x, y + 1, z)); SetNbrLight(x, y + 1, z, newLight, chunkTop); }
-
-			if (_lightmap[y, x, z] == MaxLight) { newLight = MaxLight; }
-			nbrLight = GetNbrLight(x, y - 1, z, chunkBellow);
-			if (nbrLight < newLight) { _lightAddQ.Enqueue(new Vector3(x, y - 1, z)); SetNbrLight(x, y - 1, z, newLight, chunkBellow); }
-		}
-	}
-
-	void ComputeRemoveLights()
-	{
-		TerrainChunk chunkBellow = _generator.GetNbrChunk(Vector3.down, this);
-		TerrainChunk chunkTop = _generator.GetNbrChunk(Vector3.up, this);
-		TerrainChunk chunkNorth = _generator.GetNbrChunk(Vector3.forward, this);
-		TerrainChunk chunkSouth = _generator.GetNbrChunk(Vector3.back, this);
-		TerrainChunk chunkEast = _generator.GetNbrChunk(Vector3.right, this);
-		TerrainChunk chunkWest  = _generator.GetNbrChunk(Vector3.left, this);
-		
-		while (_lightDelQ.Count > 0)
-		{
-			Vector3 v = _lightDelQ.Dequeue();
-			int x = (int)v.x;
-			int y = (int)v.y;
-			int z = (int)v.z;
-		
-			if (x < 0 || y < 0 || z < 0 || x > 15 || y > 15 || z > 15) { continue; } // TODO 
-			
-			if (_lightmap[y, x, z] == 0) { continue; }
-
-			short nbrLight;
-			short curLight = _lightmap[y, x, z];
-			
-			nbrLight = GetNbrLight(x - 1, y, z, chunkWest);
-			if (nbrLight < curLight) { _lightDelQ.Enqueue(new Vector3(x - 1, y, z)); _lightmap[y, x, z] = 0;  }
-			else                     { _lightAddQ.Enqueue(new Vector3(x - 1, y, z)); } 
-			
-			nbrLight = GetNbrLight(x + 1, y, z, chunkEast);
-			if (nbrLight < curLight) { _lightDelQ.Enqueue(new Vector3(x + 1, y, z)); _lightmap[y, x, z] = 0;  }
-			else                     { _lightAddQ.Enqueue(new Vector3(x + 1, y, z)); }
-			nbrLight = GetNbrLight(x, y, z - 1, chunkNorth);
-			if (nbrLight < curLight) { _lightDelQ.Enqueue(new Vector3(x, y, z - 1)); _lightmap[y, x, z] = 0;  }
-			else                     { _lightAddQ.Enqueue(new Vector3(x, y, z - 1)); }
-			
-			nbrLight = GetNbrLight(x, y, z + 1, chunkSouth);
-			if (nbrLight < curLight) { _lightDelQ.Enqueue(new Vector3(x, y, z + 1)); _lightmap[y, x, z] = 0;  }
-			else                     { _lightAddQ.Enqueue(new Vector3(x, y, z + 1)); }
-			
-			nbrLight = GetNbrLight(x, y + 1, z, chunkTop);
-			if (nbrLight < curLight) { _lightDelQ.Enqueue(new Vector3(x, y + 1, z)); _lightmap[y, x, z] = 0;  }
-			else                     { _lightAddQ.Enqueue(new Vector3(x, y + 1, z)); }
-			
-			nbrLight = GetNbrLight(x, y - 1, z, chunkBellow);
-			if (nbrLight < curLight || (curLight == MaxLight && nbrLight == MaxLight))
-			                         { _lightDelQ.Enqueue(new Vector3(x, y - 1, z)); _lightmap[y, x, z] = 0;  }
-			else                     { _lightAddQ.Enqueue(new Vector3(x, y - 1, z)); }
-		}
-	}
-
 }
