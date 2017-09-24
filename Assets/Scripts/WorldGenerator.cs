@@ -41,6 +41,8 @@ public class WorldGenerator : MonoBehaviour
 	private float _blockSeedX;
 	private float _blockSeedZ;
 
+	private bool _loading = false;
+
 	private void InitiateWorld()
 	{
 		Random.InitState(_worldSeed);
@@ -332,19 +334,22 @@ public class WorldGenerator : MonoBehaviour
 			
 			chunk.SetLightLevel(bx,by,bz,0);
 			chunk.SetBlock(bx, by, bz, type);
-			
-			if (by <= 1)                  { CreateChunk(chunkPos + Vector3.down * chunkSize, true); }
-			else if (by == chunkSize - 1)
+
+			if (!_loading)
 			{
-				TerrainChunk upNbr = GetChunk(chunkPos + Vector3.up * chunkSize);
-				if (upNbr) { MarkToRecompute(upNbr); }
+				if (by <= 1)                  { CreateChunk(chunkPos + Vector3.down * chunkSize, true); }
+				else if (by == chunkSize - 1)
+				{
+					TerrainChunk upNbr = GetChunk(chunkPos + Vector3.up * chunkSize);
+					if (upNbr) { MarkToRecompute(upNbr); }
+				}
+				
+				if (bx == 0)                  { CreateChunk(chunkPos + Vector3.left * chunkSize, true); }
+				else if (bx == chunkSize - 1) { CreateChunk(chunkPos + Vector3.right * chunkSize, true); }
+				
+				if (bz == 0)                  { CreateChunk(chunkPos + Vector3.back * chunkSize, true); }
+				else if (bz == chunkSize - 1) { CreateChunk(chunkPos + Vector3.forward * chunkSize, true); }
 			}
-			
-			if (bx == 0)                  { CreateChunk(chunkPos + Vector3.left * chunkSize, true); }
-			else if (bx == chunkSize - 1) { CreateChunk(chunkPos + Vector3.right * chunkSize, true); }
-			
-			if (bz == 0)                  { CreateChunk(chunkPos + Vector3.back * chunkSize, true); }
-			else if (bz == chunkSize - 1) { CreateChunk(chunkPos + Vector3.forward * chunkSize, true); }
 			
 			// lights
 			_lightAddQ.Enqueue(new Vector3(x-1,y,z));
@@ -482,6 +487,8 @@ public class WorldGenerator : MonoBehaviour
 
 	public void Load(BinaryReader reader)
 	{
+		_loading = true;
+		
 		foreach (TerrainChunk chunk in _chunkMap.Values) { Destroy(chunk.gameObject); }
 		_chunkMap.Clear();
 		_recompute.Clear();
@@ -522,5 +529,7 @@ public class WorldGenerator : MonoBehaviour
 		}
 		
 		RecomputeMeshes();
+
+		_loading = false;
 	}
 }
