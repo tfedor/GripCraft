@@ -303,6 +303,12 @@ public class WorldGenerator : MonoBehaviour
 		
 		if (type == Block.Type.Empty)
 		{
+			if (chunk.GetLightLevel(bx, by, bz) != 0)
+			{
+				_lightDelQ.Enqueue(new Vector3(x,y,z));
+				ComputeRemoveLights();
+			}
+			
 			chunk.SetLightLevel(bx,by,bz,0);
 			chunk.SetBlock(by, bx, bz, type);
 			
@@ -330,14 +336,10 @@ public class WorldGenerator : MonoBehaviour
 			_lightDelQ.Enqueue(new Vector3(x,y,z));
 			ComputeRemoveLights();
 
-			if (type == Block.Type.Gem)
+			chunk.SetLightLevel(bx, by, bz, Block.Light[type]);
+			if (Block.Light[type] != 0)
 			{
-				chunk.SetLightLevel(bx, by, bz, Block.GemLight);
-				_lightAddQ.Enqueue(new Vector3(x,y,z));
-			}
-			else
-			{
-				chunk.SetLightLevel(bx, by, bz, 0);
+				_lightAddQ.Enqueue(new Vector3(x,y,z));	
 			}
 			
 			chunk.SetBlock(by, bx, bz, type);
@@ -383,7 +385,8 @@ public class WorldGenerator : MonoBehaviour
 			nbrLight = GetLightLevel(x, y - 1, z);
 			if (nbrLight < newLight) { _lightAddQ.Enqueue(new Vector3(x, y - 1, z)); SetLightLevel(x, y - 1, z, newLight); }
 			
-			MarkToRecompute(GetChunkAtPosition(x,y,z)); // TODO no need to recompute complete mesh, just lights
+			TerrainChunk chunk = GetChunkAtPosition(x, y, z);
+			if (chunk != null) { MarkToRecompute(chunk); } // TODO no need to recompute complete mesh, just lights
 		}
 	}
 
@@ -425,8 +428,9 @@ public class WorldGenerator : MonoBehaviour
 			if (nbrLight < curLight || (curLight == TerrainChunk.MaxLight && nbrLight == TerrainChunk.MaxLight))
 			                         { _lightDelQ.Enqueue(new Vector3(x, y - 1, z)); SetLightLevel(x,y,z,0); }
 			else                     { _lightAddQ.Enqueue(new Vector3(x, y - 1, z)); }
-			
-			MarkToRecompute(GetChunkAtPosition(x,y,z)); // TODO no need to recompute complete mesh, just lights
+
+			TerrainChunk chunk = GetChunkAtPosition(x, y, z);
+			if (chunk != null) { MarkToRecompute(chunk); } // TODO no need to recompute complete mesh, just lights
 		}
 	}
 

@@ -1,4 +1,5 @@
 ﻿
+using System.Collections.Generic;
 using UnityEngine;
 
 public class Block
@@ -23,6 +24,13 @@ public class Block
 		Stone = 1,
 		Gem = 0
 	}
+
+	public static Dictionary<Type, short> Light = new Dictionary<Type, short> {
+		{Type.Ground, 0},
+		{Type.Sand, 0},
+		{Type.Stone, 0},
+		{Type.Gem, 14}
+	};
 
 	public static int Hitpoints(Type type)
 	{

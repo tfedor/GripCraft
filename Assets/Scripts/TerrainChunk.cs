@@ -65,8 +65,9 @@ public class TerrainChunk : MonoBehaviour
 				{
 					if (_wy + y < height)
 					{
-						_map[y, x, z] = (short) Block.GetType(_wy + y, height);
-						_lightmap[y, x, z] = 0;
+						Block.Type type = Block.GetType(_wy + y, height);
+						_map[y, x, z] = (short)type;
+						_lightmap[y, x, z] = Block.Light[type];
 					}
 					else
 					{
