@@ -252,7 +252,7 @@ public class TerrainChunk : MonoBehaviour
 		AddLight(lightLevel);
 		AddTriangles();
 
-		_faces = _faces | 1;
+		//_faces = _faces | 1; // it seems like it isn't needed on planes; makes planes big and player floats
 	}
 	
 	private void AddBottomFace(int y, int x, int z, short lightLevel)
@@ -451,7 +451,7 @@ public class TerrainChunk : MonoBehaviour
 			int z = (data & (15 <<  4)) >>  4;
 			Block.Type type = (Block.Type)(data & 15);
 			
-			SetBlock(x, y, z, type);
+			_generator.SetBlock(_wx + x, _wy + y, _wz + z, type); // use generator to force lights recompute
 		}
 	}
 }
