@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using UnityEngine;
 
@@ -16,11 +17,12 @@ public class WorldGenerator : MonoBehaviour
 	private readonly Dictionary<Vector3, TerrainChunk> _chunkMap
 		= new Dictionary<Vector3, TerrainChunk>();
 
-	private readonly Dictionary<Vector3, short> _hitMap
-		= new Dictionary<Vector3, short>();
+	private readonly Dictionary<Vector3, char> _hitMap
+		= new Dictionary<Vector3, char>();
 
 	private readonly HashSet<TerrainChunk> _recompute = new HashSet<TerrainChunk>();
-	
+
+	private int _worldSeed;
 	private float[] _seedX;
 	private float[] _seedZ;
 	private float[] _scale;
@@ -30,10 +32,13 @@ public class WorldGenerator : MonoBehaviour
 	private float _heightSeedX;
 	private float _heightSeedZ;
 	private float _heightScale;
-	
-	void Start ()
+
+	private float _blockSeedX;
+	private float _blockSeedZ;
+
+	private void InitiateWorld()
 	{
-		Random.InitState((int)System.DateTime.Now.Ticks);
+		Random.InitState(_worldSeed);
 
 		_scale = new[] {1/128f, 1/64f, 1/64f, 1/16f, 1/8f};
 		_power = new[] { 0.8f,     1f,  0.4f,  0.2f, 0.1f};
@@ -47,9 +52,18 @@ public class WorldGenerator : MonoBehaviour
 			_powerScale += _power[i];
 		}
 
+		_blockSeedX = Random.Range(1000f, 9999f);
+		_blockSeedZ = Random.Range(1000f, 9999f);
+
 		_heightSeedX = Random.Range(1000f, 9999f);
 		_heightSeedZ = Random.Range(1000f, 9999f);
 		_heightScale = 1/512f;
+	}
+	
+	void Start ()
+	{
+		_worldSeed = (int) System.DateTime.Now.Ticks;
+		InitiateWorld();
 		
 		TerrainChunk chunk = Instantiate(WorldChunkPrefab).GetComponent<TerrainChunk>();
 		chunk.transform.parent = transform;
@@ -89,6 +103,11 @@ public class WorldGenerator : MonoBehaviour
 		);
 		
 		return 1 + Mathf.RoundToInt(noise * maxHeight);
+	}
+
+	public float GetBlockRand(int x, int z)
+	{
+		return Mathf.PerlinNoise(_blockSeedX + x, _blockSeedZ + z);
 	}
 
 	void SaveChunk(TerrainChunk chunk)
@@ -243,7 +262,7 @@ public class WorldGenerator : MonoBehaviour
 			return Block.Type.Empty;
 		}
 		
-		_hitMap[blockPosition] = (short)hits;
+		_hitMap[blockPosition] = (char)hits;
 		return type;
 	}
 	
@@ -282,5 +301,72 @@ public class WorldGenerator : MonoBehaviour
 
 		RecomputeMeshes();
 		return chunk;
+	}
+
+	public void Save(BinaryWriter writer)
+	{
+		writer.Write(_worldSeed);
+
+		// hit map
+		writer.Write(_hitMap.Count);
+		foreach (KeyValuePair<Vector3, char> pair in _hitMap)
+		{
+			writer.Write((int) pair.Key.x);
+			writer.Write((int) pair.Key.y);
+			writer.Write((int) pair.Key.z);
+			writer.Write(pair.Value);
+		}
+		
+		// chunks
+		writer.Write(_chunkMap.Count);
+		foreach (KeyValuePair<Vector3, TerrainChunk> pair in _chunkMap)
+		{
+			writer.Write((int) pair.Key.x);
+			writer.Write((int) pair.Key.y);
+			writer.Write((int) pair.Key.z);
+			pair.Value.SaveState(writer);
+		}
+	}
+
+	public void Load(BinaryReader reader)
+	{
+		foreach (TerrainChunk chunk in _chunkMap.Values) { Destroy(chunk.gameObject); }
+		_chunkMap.Clear();
+		_recompute.Clear();
+		_hitMap.Clear();
+		
+		_worldSeed = reader.ReadInt32();		
+		InitiateWorld();
+		
+		// hits
+		int count = reader.ReadInt32();
+		for (int i = 0; i < count; i++)
+		{
+			int x = reader.ReadInt32();
+			int y = reader.ReadInt32();
+			int z = reader.ReadInt32();
+			
+			_hitMap[new Vector3(x, y, z)] = reader.ReadChar();
+		}
+		
+		// chunks
+		count = reader.ReadInt32();
+		for (int i = 0; i < count; i++)
+		{
+			int x = reader.ReadInt32();
+			int y = reader.ReadInt32();
+			int z = reader.ReadInt32();
+			
+			TerrainChunk chunk = Instantiate(WorldChunkPrefab).GetComponent<TerrainChunk>();
+			chunk.transform.parent = transform;
+			chunk.transform.position = new Vector3(x,y,z);
+			chunk.Generate();
+			SaveChunk(chunk);
+			MarkToRecompute(chunk);		
+			
+			chunk.ReplayState(reader);		
+		}
+		
+		RecomputeMeshes();
 	}
 }

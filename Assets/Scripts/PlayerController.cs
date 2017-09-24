@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using System.IO;
+using UnityEngine;
 
 public class PlayerController : MonoBehaviour
 {
@@ -159,6 +160,9 @@ public class PlayerController : MonoBehaviour
 		BuildOptions();
 		Cast();
 		UpdateWorld();
+
+		if (Input.GetKeyUp(KeyCode.F5)) { Save("gamesave.gsf"); }
+		if (Input.GetKeyUp(KeyCode.F9)) { Load("gamesave.gsf"); }
 	}
 	
 	void UpdateWorld()
@@ -209,5 +213,54 @@ public class PlayerController : MonoBehaviour
 		{
 			Cursor.lockState = CursorLockMode.Locked;
 		}
+	}
+	
+	
+	public void Save(string filename)
+	{
+		using (BinaryWriter writer = new BinaryWriter(File.Open(filename, FileMode.Create)))
+		{
+			_world.Save(writer);
+			
+			writer.Write(transform.position.x);
+			writer.Write(transform.position.y);
+			writer.Write(transform.position.z);
+			
+			writer.Write(transform.rotation.x);
+			writer.Write(transform.rotation.y);
+			writer.Write(transform.rotation.z);
+			writer.Write(transform.rotation.w);
+		}
+		Debug.Log("Saved");
+	}
+
+	public void Load(string filename)
+	{
+		
+		if (!File.Exists(filename))
+		{
+			Debug.Log("Load file doesn't exist");
+			return;
+		}
+		
+		using (BinaryReader reader = new BinaryReader(File.Open(filename, FileMode.Open)))
+		{
+			_world.Load(reader);
+
+			transform.position = new Vector3(
+				reader.ReadSingle(),
+				reader.ReadSingle(),
+				reader.ReadSingle()
+			);
+			
+			transform.rotation = new Quaternion(
+				reader.ReadSingle(),
+				reader.ReadSingle(),
+				reader.ReadSingle(),
+				reader.ReadSingle()
+			);
+		}
+		
+		Debug.Log("Loaded");
 	}
 }

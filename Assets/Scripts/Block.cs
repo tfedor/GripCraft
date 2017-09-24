@@ -15,7 +15,7 @@ public class Block
 	
 	public enum Type
 	{
-		Empty = -1,
+		Empty = 15,
 		Ground = 3,
 		Sand = 2,
 		Stone = 1,
@@ -34,9 +34,8 @@ public class Block
 		return 0;
 	}
 
-	public static Type GetType(int blockHeight, int height)
+	public static Type GetType(int blockHeight, int height, float rand)
 	{
-		float rand = Random.value;
 		if (blockHeight < -20 - rand * 30) { return Type.Gem; }
 		if (blockHeight <   5 - rand *  3) { return Type.Stone; }
 

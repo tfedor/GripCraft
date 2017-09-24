@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 
 public class TerrainChunk : MonoBehaviour
@@ -12,9 +13,8 @@ public class TerrainChunk : MonoBehaviour
 	private MeshRenderer _meshRenderer;
 	private MeshFilter _meshFilter;
 	private MeshCollider _meshCollider;
-	private BoxCollider _boxCollider;
 	
-	private readonly short[,,] _map = new short[16,16,16];
+	private readonly Block.Type[,,] _map = new Block.Type[16,16,16];
 	
 	private readonly List<Vector3> _vertices = new List<Vector3>();
 	private readonly List<Vector3> _normals = new List<Vector3>();
@@ -32,6 +32,9 @@ public class TerrainChunk : MonoBehaviour
 	//
 	public bool Visited = false;
 
+	// state
+	private readonly Dictionary<short,Block.Type> _changes = new Dictionary<short, Block.Type>();
+	
 	void Awake ()
     {
 	    _meshRenderer = GetComponent<MeshRenderer>();
@@ -60,8 +63,8 @@ public class TerrainChunk : MonoBehaviour
 				
 				for (var y = 0; y < ChunkSize; y++)
 				{
-					_map[y, x, z] = (short) (_wy + y < height
-						? Block.GetType(_wy + y, height)
+					_map[y, x, z] = (_wy + y < height
+						? Block.GetType(_wy + y, height, _generator.GetBlockRand(_wx + x, _wz + z))
 						: Block.Type.Empty
 					);
 				}
@@ -131,7 +134,15 @@ public class TerrainChunk : MonoBehaviour
 	
 	public void SetBlock(int y, int x, int z, Block.Type type)
 	{
-		_map[y, x, z] = (short)type;
+		_map[y, x, z] = type;
+		
+		// save action
+		short key = (short) (
+			((y & 15) << 8) |
+			((x & 15) << 4) |
+			 (z & 15)
+		);
+		_changes[key] = type;
 	}
 
 	public Block.Type GetBlock(int y, int x, int z)
@@ -360,5 +371,29 @@ public class TerrainChunk : MonoBehaviour
 		_normals.Clear();
 		_uv.Clear();
 		_v = 0;
+	}
+
+	public void SaveState(BinaryWriter writer)
+	{
+		writer.Write((short)_changes.Count);
+		foreach (KeyValuePair<short, Block.Type> data in _changes)
+		{
+			writer.Write((short)((data.Key << 4) | ((short)data.Value & 15)));
+		}
+	}
+
+	public void ReplayState(BinaryReader reader)
+	{
+		short changes = reader.ReadInt16();
+		for (int i = 0; i < changes; i++)
+		{
+			short data = reader.ReadInt16();
+			int y = (data & (15 << 12)) >> 12;
+			int x = (data & (15 <<  8)) >>  8;
+			int z = (data & (15 <<  4)) >>  4;
+			Block.Type type = (Block.Type)(data & 15);
+			
+			SetBlock(y, x, z, type);
+		}
 	}
 }
