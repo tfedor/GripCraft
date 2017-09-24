@@ -83,9 +83,10 @@ public class PlayerController : MonoBehaviour
 
 	void BuildOptions()
 	{
-		if (Input.GetKeyDown(KeyCode.Tab))
+		bool prevMode = _buildMode;
+		_buildMode = Input.GetButton("Fire2");
+		if (prevMode != _buildMode)
 		{
-			_buildMode = !_buildMode;
 			_ui.SetMode(_buildMode);
 			
 			CursorCube.transform.localScale = _buildMode ? Vector3.one : Vector3.one * 1.001f;

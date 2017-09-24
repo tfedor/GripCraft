@@ -44,7 +44,7 @@ public class UIController : MonoBehaviour
 
 	public void SetMode(bool isBuildMode)
 	{
-		_mode.text = (isBuildMode ? "Build" : "Destroy") + " [Tab]";
+		_mode.text = (isBuildMode ? "Build" : "Destroy");
 	}
 	
 }
