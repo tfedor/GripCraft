@@ -1,8 +1,10 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEngine;
+using Random = UnityEngine.Random;
 
 public class WorldGenerator : MonoBehaviour
 {
@@ -21,6 +23,9 @@ public class WorldGenerator : MonoBehaviour
 		= new Dictionary<Vector3, char>();
 
 	private readonly HashSet<TerrainChunk> _recompute = new HashSet<TerrainChunk>();
+
+	private readonly Queue<Vector3> _lightAddQ = new Queue<Vector3>();
+	private readonly Queue<Vector3> _lightDelQ = new Queue<Vector3>();
 
 	private int _worldSeed;
 	private float[] _seedX;
@@ -217,7 +222,7 @@ public class WorldGenerator : MonoBehaviour
 		return GetChunk(new Vector3(ix - bx, iy - by, iz - bz));
 	}
 	
-	public Block.Type GetBlock(int y, int x, int z)
+	public Block.Type GetBlock(int x, int y, int z)
 	{
 		int by = y % TerrainChunk.ChunkSize;
 		int bx = x % TerrainChunk.ChunkSize;
@@ -232,10 +237,45 @@ public class WorldGenerator : MonoBehaviour
 		TerrainChunk chunk = GetChunk(chunkPos);
 		if (!chunk) { return Block.Type.Empty; }
 		
-		return chunk.GetBlock(by, bx, bz);
+		return chunk.GetBlock(bx, @by, bz);
 	}
 	
-	public Block.Type HitBlock(int y, int x, int z, TerrainChunk chunk)
+	public short GetLightLevel(int x, int y, int z)
+	{
+		int bx = x % TerrainChunk.ChunkSize;
+		int by = y % TerrainChunk.ChunkSize;
+		int bz = z % TerrainChunk.ChunkSize;
+		
+		if (bx < 0) { bx += TerrainChunk.ChunkSize; }
+		if (by < 0) { by += TerrainChunk.ChunkSize; }
+		if (bz < 0) { bz += TerrainChunk.ChunkSize; }
+		
+		Vector3 chunkPos = new Vector3(x - bx, y - by, z - bz);
+
+		TerrainChunk chunk = GetChunk(chunkPos);
+		if (!chunk) { return 0; }
+		
+		return chunk.GetLightLevel(bx, by, bz);
+	}
+	public void SetLightLevel(int x, int y, int z, short level)
+	{
+		int bx = x % TerrainChunk.ChunkSize;
+		int by = y % TerrainChunk.ChunkSize;
+		int bz = z % TerrainChunk.ChunkSize;
+		
+		if (bx < 0) { bx += TerrainChunk.ChunkSize; }
+		if (by < 0) { by += TerrainChunk.ChunkSize; }
+		if (bz < 0) { bz += TerrainChunk.ChunkSize; }
+		
+		Vector3 chunkPos = new Vector3(x - bx, y - by, z - bz);
+
+		TerrainChunk chunk = GetChunk(chunkPos);
+		if (!chunk) { return; }
+		
+		chunk.SetLightLevel(bx, by, bz, level);
+	}
+	
+	public Block.Type HitBlock(int x, int y, int z, TerrainChunk chunk)
 	{
 		Vector3 blockPosition = new Vector3(x,y,z);
 		int by = y % TerrainChunk.ChunkSize;
@@ -252,13 +292,13 @@ public class WorldGenerator : MonoBehaviour
 			hits += _hitMap[blockPosition];
 		}
 
-		Block.Type type = chunk.GetBlock(by, bx, bz);
+		Block.Type type = chunk.GetBlock(bx, @by, bz);
 		int hitpoints = Block.Hitpoints(type);
 		
 		if (hits >= hitpoints)
 		{
 			_hitMap.Remove(blockPosition);
-			SetBlock(y, x, z, Block.Type.Empty);
+			SetBlock(x, y, z, Block.Type.Empty);
 			return Block.Type.Empty;
 		}
 		
@@ -266,7 +306,7 @@ public class WorldGenerator : MonoBehaviour
 		return type;
 	}
 	
-	public TerrainChunk SetBlock(int y, int x, int z, Block.Type type)
+	public TerrainChunk SetBlock(int x, int y, int z, Block.Type type)
 	{
 		const int chunkSize = TerrainChunk.ChunkSize;
 		
@@ -281,10 +321,18 @@ public class WorldGenerator : MonoBehaviour
 		Vector3 chunkPos = new Vector3(x - bx, y - by, z - bz);
 
 		TerrainChunk chunk = CreateChunk(chunkPos, true);
-		chunk.SetBlock(by, bx, bz, type);
 		
 		if (type == Block.Type.Empty)
 		{
+			if (chunk.GetLightLevel(bx, by, bz) != 0)
+			{
+				_lightDelQ.Enqueue(new Vector3(x,y,z));
+				ComputeRemoveLights();
+			}
+			
+			chunk.SetLightLevel(bx,by,bz,0);
+			chunk.SetBlock(bx, by, bz, type);
+			
 			if (by <= 1)                  { CreateChunk(chunkPos + Vector3.down * chunkSize, true); }
 			else if (by == chunkSize - 1)
 			{
@@ -297,10 +345,114 @@ public class WorldGenerator : MonoBehaviour
 			
 			if (bz == 0)                  { CreateChunk(chunkPos + Vector3.back * chunkSize, true); }
 			else if (bz == chunkSize - 1) { CreateChunk(chunkPos + Vector3.forward * chunkSize, true); }
-		}
+			
+			// lights
+			_lightAddQ.Enqueue(new Vector3(x-1,y,z));
+			_lightAddQ.Enqueue(new Vector3(x+1,y,z));
+			_lightAddQ.Enqueue(new Vector3(x,y-1,z));
+			_lightAddQ.Enqueue(new Vector3(x,y+1,z));
+			_lightAddQ.Enqueue(new Vector3(x,y,z-1));
+			_lightAddQ.Enqueue(new Vector3(x,y,z+1));
+		} else {
+			_lightDelQ.Enqueue(new Vector3(x,y,z));
+			ComputeRemoveLights();
 
+			chunk.SetLightLevel(bx, by, bz, Block.Light[type]);
+			if (Block.Light[type] != 0)
+			{
+				_lightAddQ.Enqueue(new Vector3(x,y,z));	
+			}
+			
+			chunk.SetBlock(bx, by, bz, type);
+		}
+		
+		ComputeLights();
 		RecomputeMeshes();
 		return chunk;
+	}
+	
+	public void ComputeLights()
+	{
+		while (_lightAddQ.Count > 0)
+		{
+			Vector3 v = _lightAddQ.Dequeue();
+
+			int x = (int)v.x;
+			int y = (int)v.y;
+			int z = (int)v.z;
+
+			Block.Type type = GetBlock(x, y, z);
+			if (type != Block.Type.Empty && type != Block.Type.Gem) { continue; }
+			
+			short nbrLight;
+			short newLight = (short)(GetLightLevel(x, y, z) - 1);
+
+			nbrLight = GetLightLevel(x - 1, y, z);
+			if (nbrLight < newLight) { _lightAddQ.Enqueue(new Vector3(x - 1, y, z)); SetLightLevel(x - 1, y, z, newLight); } 
+			
+			nbrLight = GetLightLevel(x + 1, y, z);
+			if (nbrLight < newLight) { _lightAddQ.Enqueue(new Vector3(x + 1, y, z)); SetLightLevel(x + 1, y, z, newLight); }
+			
+			nbrLight = GetLightLevel(x, y, z - 1);
+			if (nbrLight < newLight) { _lightAddQ.Enqueue(new Vector3(x, y, z - 1)); SetLightLevel(x, y, z - 1, newLight); }
+			
+			nbrLight = GetLightLevel(x, y, z + 1);
+			if (nbrLight < newLight) { _lightAddQ.Enqueue(new Vector3(x, y, z + 1)); SetLightLevel(x, y, z + 1, newLight); }
+			
+			nbrLight = GetLightLevel(x, y + 1, z);
+			if (nbrLight < newLight) { _lightAddQ.Enqueue(new Vector3(x, y + 1, z)); SetLightLevel(x, y + 1, z, newLight); }
+
+			if (newLight == TerrainChunk.MaxLight - 1) { newLight = TerrainChunk.MaxLight; }
+			nbrLight = GetLightLevel(x, y - 1, z);
+			if (nbrLight < newLight) { _lightAddQ.Enqueue(new Vector3(x, y - 1, z)); SetLightLevel(x, y - 1, z, newLight); }
+			
+			TerrainChunk chunk = GetChunkAtPosition(x, y, z);
+			if (chunk != null) { MarkToRecompute(chunk); } // TODO no need to recompute complete mesh, just lights
+		}
+	}
+
+	public void ComputeRemoveLights()
+	{
+		
+		while (_lightDelQ.Count > 0)
+		{
+			Vector3 v = _lightDelQ.Dequeue();
+			int x = (int)v.x;
+			int y = (int)v.y;
+			int z = (int)v.z;
+		
+			short nbrLight;
+			short curLight = GetLightLevel(x, y, z);
+			
+			if (curLight == 0) { continue; }
+			
+			nbrLight = GetLightLevel(x - 1, y, z);
+			if (nbrLight < curLight) { _lightDelQ.Enqueue(new Vector3(x - 1, y, z)); SetLightLevel(x,y,z,0); }
+			else                     { _lightAddQ.Enqueue(new Vector3(x - 1, y, z)); } 
+			
+			nbrLight = GetLightLevel(x + 1, y, z);
+			if (nbrLight < curLight) { _lightDelQ.Enqueue(new Vector3(x + 1, y, z)); SetLightLevel(x,y,z,0); }
+			else                     { _lightAddQ.Enqueue(new Vector3(x + 1, y, z)); }
+			nbrLight = GetLightLevel(x, y, z - 1);
+			if (nbrLight < curLight) { _lightDelQ.Enqueue(new Vector3(x, y, z - 1)); SetLightLevel(x,y,z,0); }
+			else                     { _lightAddQ.Enqueue(new Vector3(x, y, z - 1)); }
+			
+			nbrLight = GetLightLevel(x, y, z + 1);
+			if (nbrLight < curLight) { _lightDelQ.Enqueue(new Vector3(x, y, z + 1)); SetLightLevel(x,y,z,0); }
+			else                     { _lightAddQ.Enqueue(new Vector3(x, y, z + 1)); }
+			
+			nbrLight = GetLightLevel(x, y + 1, z);
+			if (nbrLight < curLight) { _lightDelQ.Enqueue(new Vector3(x, y + 1, z)); SetLightLevel(x,y,z,0); }
+			else                     { _lightAddQ.Enqueue(new Vector3(x, y + 1, z)); }
+			
+			nbrLight = GetLightLevel(x, y - 1, z);
+			if (nbrLight < curLight || (curLight == TerrainChunk.MaxLight && nbrLight == TerrainChunk.MaxLight))
+			                         { _lightDelQ.Enqueue(new Vector3(x, y - 1, z)); SetLightLevel(x,y,z,0); }
+			else                     { _lightAddQ.Enqueue(new Vector3(x, y - 1, z)); }
+
+			TerrainChunk chunk = GetChunkAtPosition(x, y, z);
+			if (chunk != null) { MarkToRecompute(chunk); } // TODO no need to recompute complete mesh, just lights
+		}
 	}
 
 	public void Save(BinaryWriter writer)
@@ -334,6 +486,8 @@ public class WorldGenerator : MonoBehaviour
 		_chunkMap.Clear();
 		_recompute.Clear();
 		_hitMap.Clear();
+		_lightAddQ.Clear();
+		_lightDelQ.Clear();
 		
 		_worldSeed = reader.ReadInt32();		
 		InitiateWorld();

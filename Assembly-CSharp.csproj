@@ -58,6 +58,7 @@
     <Compile Include="Assets\Scripts\UIController.cs" />
     <Compile Include="Assets\Scripts\WorldGenerator.cs" />
     <None Include="Assets\Fonts\Read Me.txt" />
+    <None Include="Assets\Materials\CustomShader.shader" />
     <None Include="Assets\Fonts\License.txt" />
     <Reference Include="UnityEngine.UI">
       <HintPath>C:/Programs/Unity/Editor/Data/UnityExtensions/Unity/GUISystem/UnityEngine.UI.dll</HintPath>

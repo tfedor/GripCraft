@@ -120,7 +120,7 @@ public class PlayerController : MonoBehaviour
 			{
 				if (_buildMode) {
 					if (_enableBuild) {
-						TerrainChunk affectedChunk = _world.SetBlock(y, x, z, _selectedType);
+						TerrainChunk affectedChunk = _world.SetBlock(x, y, z, _selectedType);
 						if (affectedChunk != null && affectedChunk != chunk)
 						{
 							chunk.RecomputeMesh();
@@ -129,7 +129,7 @@ public class PlayerController : MonoBehaviour
 				}
 				else
 				{
-					Block.Type type = _world.HitBlock(y, x, z, chunk);
+					Block.Type type = _world.HitBlock(x, y, z, chunk);
 					if (type != Block.Type.Empty)
 					{
 						ParticleSystem ps = CursorCube.GetComponent<ParticleSystem>();
